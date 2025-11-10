@@ -1,0 +1,31 @@
+[package]
+name = "snoopy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+alloy = { version = "1.0.41", features = ["full"] }
+anyhow = "1.0.100"
+bs58 = "0.5.1"
+clap = { version = "4.5.50", features = ["derive", "env"] }
+clickhouse = "0.13.3"
+dotenv = "0.15.0"
+eth_trie = "0.6.1"
+reqwest = { version = "0.12.24", features = ["json", "stream"] }
+sentry = { version = "0.45.0", features = ["tracing"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_bytes = "0.11.19"
+serde_repr = "0.1.20"
+tiny-keccak = "2.0.2"
+tokio = { version = "1.48.0", features = ["rt-multi-thread"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+sqd-assignments = { git = "https://github.com/subsquid/sqd-network.git", rev = "ef91736", features = ["reader"] }
+sqd-messages = { git = "https://github.com/subsquid/sqd-network.git", rev = "ef91736", version = "2.0.2", features = ["bitstring", "assignment_reader", "signatures"] }
+rlp = "0.6.1"
+flate2 = "1.1.5"
+libp2p-identity = { version = "0.2.9", features = ["ed25519", "rand"] }
+sp1-sdk = { version = "5.2.2", features = ["network"] }
+rustls = "0.23.34"
+rocket = { version = "0.5.1", features = ["json"] }
+uuid = { version = "1.18.1", features = ["v4"] }
