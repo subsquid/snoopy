@@ -10,7 +10,7 @@ use alloy::{primitives::Address, signers::local::PrivateKeySigner};
 use clap::Parser;
 use clickhouse::Client;
 use eth_trie::{EthTrie, MemoryDB, Trie};
-use rocket::{State, post, serde::json::Json};
+use rocket::{State, post, serde::json::Json, get, fs::NamedFile};
 use serde::{Deserialize, Serialize};
 use snoopy::{
     PrivateProofData, build_zk_proof, filter_eligible_queries, get_assignment_id_map,
@@ -122,6 +122,21 @@ async fn get_task_status(task_id: String, state: &State<InternalState>) -> Json<
             comment: None,
         })
     }
+}
+
+#[get("/")]
+async fn index() -> NamedFile {
+    NamedFile::open("templates/index.html").await.unwrap()
+}
+
+#[get("/styles.css")]
+async fn styles() -> NamedFile {
+    NamedFile::open("static/styles.css").await.unwrap()
+}
+
+#[get("/app.js")]
+async fn app_js() -> NamedFile {
+    NamedFile::open("static/app.js").await.unwrap()
 }
 
 fn set_task_status(
@@ -443,7 +458,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     run_loop(&state);
     let _ = rocket::build()
         .manage(state)
-        .mount("/", routes![submit_task, get_task_status, get_all_tasks])
+        .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks])
         .launch()
         .await;
     Ok(())

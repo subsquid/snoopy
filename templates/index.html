@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=0"/>
+    <title>SQD Task Monitor</title>
+    <link rel="icon" type="image/png" href="/favicon.v3.png"/>
+    <meta property="og:title" content="SQD Task Monitor"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div id="root">
+        <header class="header">
+            <div class="container">
+                <div class="header-content">
+                    <h1 class="logo">SQD Task Monitor</h1>
+                    <div class="header-stats">
+                        <div class="stat">
+                            <span class="stat-label">Total Tasks</span>
+                            <span class="stat-value" id="total-tasks">0</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Running</span>
+                            <span class="stat-value running" id="running-tasks">0</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-label">Completed</span>
+                            <span class="stat-value completed" id="completed-tasks">0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="container">
+                <div class="tasks-section">
+                    <div class="section-header">
+                        <h2>Active Tasks</h2>
+                        <div class="header-buttons">
+                            <button class="submit-task-btn" onclick="openSubmitTaskModal()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Submit Task
+                            </button>
+                            <button class="refresh-btn" onclick="refreshTasks()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="tasks-container" class="tasks-container">
+                        <div class="loading-state">
+                            <div class="subsquid-loader"></div>
+                            <p>Loading tasks...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Submit Task Modal -->
+    <div id="submit-task-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Submit New Task</h3>
+                <button class="modal-close-btn" onclick="closeSubmitTaskModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            <form class="task-form-modal" id="task-form-modal">
+                <div class="form-group">
+                    <label for="modal-query-id">Query ID</label>
+                    <input type="text" id="modal-query-id" name="query_id" placeholder="Enter query ID" required>
+                </div>
+                <div class="form-group">
+                    <label for="modal-timestamp">Timestamp</label>
+                    <input type="number" id="modal-timestamp" name="ts" placeholder="Enter timestamp" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="cancel-btn" onclick="closeSubmitTaskModal()">Cancel</button>
+                    <button type="submit" class="submit-btn">Submit Task</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

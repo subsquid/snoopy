@@ -8,7 +8,7 @@ alloy = { version = "1.0.41", features = ["full"] }
 anyhow = "1.0.100"
 bs58 = "0.5.1"
 clap = { version = "4.5.50", features = ["derive", "env"] }
-clickhouse = "0.13.3"
+clickhouse = { version = "0.13.3", features = ["native-tls"] }
 dotenv = "0.15.0"
 eth_trie = "0.6.1"
 reqwest = { version = "0.12.24", features = ["json", "stream"] }
