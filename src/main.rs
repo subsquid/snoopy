@@ -90,6 +90,7 @@ struct Task {
     id: Uuid,
     query_id: String,
     ts: u64,
+    creation_ts: u64,
     status: TaskStatus,
     comment: Option<String>,
 }
@@ -103,7 +104,8 @@ struct InternalState {
 #[get("/tasks")]
 async fn get_all_tasks(state: &State<InternalState>) -> Json<Vec<Task>> {
     let tasks_lock = state.tasks.lock().unwrap();
-    let tasks: Vec<Task> = tasks_lock.values().cloned().collect();
+    let mut tasks: Vec<Task> = tasks_lock.values().cloned().collect();
+    tasks.sort_by(|a, b| b.creation_ts.cmp(&a.creation_ts));
     Json(tasks)
 }
 
@@ -118,6 +120,7 @@ async fn get_task_status(task_id: String, state: &State<InternalState>) -> Json<
             id: task_id,
             query_id: Default::default(),
             ts: 0,
+            creation_ts: 0,
             status: TaskStatus::NotFound,
             comment: None,
         })
@@ -161,6 +164,10 @@ struct TaskDescription {
 #[post("/tasks", data = "<task>")]
 async fn submit_task(task: Json<TaskDescription>, state: &State<InternalState>) -> Json<Uuid> {
     let task_id = Uuid::new_v4();
+    let creation_ts = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     let mut tasks_lock = state.tasks.lock().unwrap();
     tasks_lock.insert(
         task_id,
@@ -168,6 +175,7 @@ async fn submit_task(task: Json<TaskDescription>, state: &State<InternalState>) 
             id: task_id,
             query_id: task.query_id.clone(),
             ts: task.ts,
+            creation_ts,
             status: TaskStatus::Pending,
             comment: None,
         },

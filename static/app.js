@@ -34,7 +34,7 @@ class TaskMonitor {
             }
             
             const tasks = await response.json();
-            this.tasks = tasks.sort((a, b) => new Date(b.ts * 1000) - new Date(a.ts * 1000));
+            this.tasks = tasks.sort((a, b) => new Date(b.creation_ts * 1000) - new Date(a.creation_ts * 1000));
             this.renderTasks();
             this.updateStats();
         } catch (error) {
@@ -68,14 +68,10 @@ class TaskMonitor {
         
         return `
             <div class="task-card" onclick="taskMonitor.showTaskDetails('${task.id}')">
-                <div class="task-header">
-                    <div class="task-id">${this.escapeHtml(task.query_id)}</div>
-                    <div class="task-status ${statusClass}">${this.formatStatus(task.status)}</div>
-                </div>
                 <div class="task-details">
                     <div class="task-detail">
-                        <div class="task-detail-label">Task ID</div>
-                        <div class="task-detail-value">${task.id}</div>
+                        <div class="task-detail-label">Query ID</div>
+                        <div class="task-detail-value">${this.escapeHtml(task.query_id)}</div>
                     </div>
                     <div class="task-detail">
                         <div class="task-detail-label">Timestamp</div>
