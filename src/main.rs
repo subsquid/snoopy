@@ -100,6 +100,13 @@ struct InternalState {
     config: Args,
 }
 
+#[get("/tasks")]
+async fn get_all_tasks(state: &State<InternalState>) -> Json<Vec<Task>> {
+    let tasks_lock = state.tasks.lock().unwrap();
+    let tasks: Vec<Task> = tasks_lock.values().cloned().collect();
+    Json(tasks)
+}
+
 #[get("/tasks/<task_id>")]
 async fn get_task_status(task_id: String, state: &State<InternalState>) -> Json<Task> {
     let task_id = Uuid::parse_str(&task_id).unwrap();
@@ -436,7 +443,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     run_loop(&state);
     let _ = rocket::build()
         .manage(state)
-        .mount("/", routes![submit_task, get_task_status])
+        .mount("/", routes![submit_task, get_task_status, get_all_tasks])
         .launch()
         .await;
     Ok(())
