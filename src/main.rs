@@ -95,6 +95,15 @@ struct Task {
     comment: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Metadata {
+    network: String,
+    rpc_url: String,
+    commiter_address: String,
+    manager_address: String,
+    config_name: String,
+}
+
 // Shared state to store tasks
 struct InternalState {
     tasks: Arc<Mutex<HashMap<Uuid, Task>>>,
@@ -125,6 +134,18 @@ async fn get_task_status(task_id: String, state: &State<InternalState>) -> Json<
             comment: None,
         })
     }
+}
+
+#[get("/metadata")]
+async fn get_metadata(state: &State<InternalState>) -> Json<Metadata> {
+    let config = &state.config;
+    Json(Metadata {
+        network: config.network.clone(),
+        rpc_url: config.rpc_url.clone(),
+        commiter_address: config.commiter_address.to_string(),
+        manager_address: config.manager_address.to_string(),
+        config_name: config.config_name.clone(),
+    })
 }
 
 #[get("/")]
@@ -466,7 +487,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     run_loop(&state);
     let _ = rocket::build()
         .manage(state)
-        .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks])
+        .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks, get_metadata])
         .launch()
         .await;
     Ok(())

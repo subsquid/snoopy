@@ -106,6 +106,30 @@ body, html {
     gap: 12px;
 }
 
+.eth-events-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #059669;
+    border: 1px solid #059669;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.eth-events-btn:hover {
+    background: #047857;
+    border-color: #047857;
+}
+
+.eth-events-btn:active {
+    transform: translateY(1px);
+}
+
 .submit-task-btn {
     display: flex;
     align-items: center;
@@ -309,6 +333,33 @@ body, html {
     font-size: 14px;
 }
 
+/* Error state */
+.error-state {
+    text-align: center;
+    padding: 32px 24px;
+    color: #6b7280;
+}
+
+.error-state h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.error-state p {
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.error-state ul {
+    text-align: left;
+    margin: 8px 0;
+}
+
+.error-state li {
+    margin-bottom: 4px;
+}
+
 /* Task form */
 .task-form {
     background: #ffffff;
@@ -433,6 +484,11 @@ body, html {
     transition: transform 0.3s ease;
 }
 
+.eth-events-modal {
+    max-width: 900px;
+    width: 95%;
+}
+
 .modal-overlay.show .modal-content {
     transform: scale(1);
 }
@@ -469,6 +525,185 @@ body, html {
 
 .task-form-modal {
     padding: 0 24px 24px 24px;
+}
+
+.modal-body {
+    padding: 0 24px 24px 24px;
+    max-height: calc(80vh - 120px);
+    overflow-y: auto;
+}
+
+/* Ethereum Events Modal Styles */
+.events-controls {
+    display: flex;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e5e7eb;
+    flex-wrap: wrap;
+}
+
+.events-controls .form-group {
+    margin-bottom: 0;
+    flex: 1;
+    min-width: 200px;
+}
+
+.block-range-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.block-range-inputs input {
+    flex: 1;
+}
+
+.block-range-inputs span {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.load-events-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: #059669;
+    border: 1px solid #059669;
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.load-events-btn:hover {
+    background: #047857;
+    border-color: #047857;
+}
+
+.load-events-btn:active {
+    transform: translateY(1px);
+}
+
+.events-container {
+    max-height: 400px;
+    overflow-y: auto;
+    display: grid;
+    gap: 12px;
+}
+
+.event-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    transition: all 0.2s ease;
+}
+
+.event-card:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.event-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.event-type {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.event-block {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.event-data {
+    margin-bottom: 12px;
+}
+
+.event-detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+
+.event-detail-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.event-detail-value {
+    font-size: 13px;
+    color: #1a1a1a;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    word-break: break-all;
+    text-align: right;
+    max-width: 60%;
+}
+
+.event-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #6b7280;
+    padding-top: 8px;
+    border-top: 1px solid #f3f4f6;
+}
+
+.event-tx {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+/* Event type specific colors */
+.event-card.fraudfound {
+    border-left: 3px solid #ef4444;
+}
+
+.event-card.fraudfound .event-type {
+    color: #dc2626;
+}
+
+.event-card.roleadminchanged {
+    border-left: 3px solid #f59e0b;
+}
+
+.event-card.roleadminchanged .event-type {
+    color: #d97706;
+}
+
+.event-card.rolegranted {
+    border-left: 3px solid #10b981;
+}
+
+.event-card.rolegranted .event-type {
+    color: #059669;
+}
+
+.event-card.rolerevoked {
+    border-left: 3px solid #ef4444;
+}
+
+.event-card.rolerevoked .event-type {
+    color: #dc2626;
 }
 
 .modal-actions {
@@ -611,5 +846,30 @@ body, html {
     
     .task-form {
         max-width: none;
+    }
+    
+    .events-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .events-controls .form-group {
+        min-width: auto;
+    }
+    
+    .load-events-btn {
+        align-self: stretch;
+        justify-content: center;
+    }
+    
+    .event-detail {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+    
+    .event-detail-value {
+        max-width: 100%;
+        text-align: left;
     }
 }
