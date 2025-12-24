@@ -27,6 +27,9 @@ RUN --mount=type=ssh cargo build --release
 
 FROM chef AS snoopy
 # RUN apt-get update && apt-get install -y net-tools libsqlite3-dev
+COPY prove-query-result-program /app/prove-query-result-program
+COPY static /app/static
+COPY templates /app/templates
 COPY --from=builder /app/target/release/snoopy /app/snoopy
 EXPOSE 8000
 # ENV LISTEN_PORT="12345"
