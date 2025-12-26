@@ -29,3 +29,4 @@ sp1-sdk = { version = "5.2.2", features = ["network"] }
 rustls = "0.23.34"
 rocket = { version = "0.5.1", features = ["json"] }
 uuid = { version = "1.18.1", features = ["v4"] }
+tikv-jemallocator = "0.5"

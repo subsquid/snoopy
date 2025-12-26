@@ -18,7 +18,7 @@ pub use sqd_messages::query_finished::Result as QueryFinishedResult;
 use sqd_messages::{Query, QueryFinished, QueryOkSummary, Range};
 use std::{cmp::Ordering, collections::HashMap, fs::File, io::Read, str::FromStr};
 use tiny_keccak::{Hasher, Keccak};
-use tracing::info;
+use tracing::{debug, info};
 
 // Codegen from ABI file to interact with the contract.
 sol!(
@@ -187,7 +187,7 @@ pub async fn get_siblings_queries(
         ts + ts_tolerance
     );
     let original_query = client
-        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where collector_timestamp > ? AND collector_timestamp < ? AND query_id = ?")
+        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where worker_timestamp > ? AND worker_timestamp < ? AND query_id = ?")
         .bind((ts - ts_tolerance) as u32)
         .bind((ts + ts_tolerance) as u32)
         .bind(query_id)
@@ -204,7 +204,7 @@ pub async fn get_siblings_queries(
     );
 
     let mut sibling_queries = client
-        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where collector_timestamp > ? AND collector_timestamp < ? AND hex(query_hash) = ? AND from_block = ? AND to_block = ? AND result = 'ok'")
+        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where worker_timestamp > ? AND worker_timestamp < ? AND hex(query_hash) = ? AND from_block = ? AND to_block = ? AND result = 'ok'")
         .bind(ts - ts_search_range)
         .bind(ts + ts_search_range)
         .bind(original_query.query_hash.iter().map(|v| format!("{v:02X}")).collect::<Vec<_>>().join(""))
@@ -283,7 +283,7 @@ pub async fn get_signatures(
         .bind(eligible_queries.iter().map(|row| row.query_id.clone()).collect::<Vec<_>>())
         .fetch_all::<SignatureRow>()
         .await?;
-
+    debug!("Signature rows: {signatures:?}");
     let mut result_count: HashMap<Vec<u8>, usize> = HashMap::new();
     for row in &signatures {
         *result_count.entry(row.result_hash.clone()).or_default() += 1;

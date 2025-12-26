@@ -12,7 +12,6 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 
 FROM chef AS builder
-#RUN apt-get update && apt-get install protobuf-compiler pkg-config libssl-dev libsqlite3-dev build-essential  -y
 RUN apt-get update && apt-get install protobuf-compiler pkg-config libssl-dev build-essential  -y
 
 COPY --from=planner /app/recipe.json recipe.json
@@ -26,15 +25,11 @@ RUN --mount=type=ssh cargo build --release
 
 
 FROM chef AS snoopy
-# RUN apt-get update && apt-get install -y net-tools libsqlite3-dev
 COPY prove-query-result-program /app/prove-query-result-program
 COPY static /app/static
 COPY templates /app/templates
 COPY --from=builder /app/target/release/snoopy /app/snoopy
 EXPOSE 8000
-# ENV LISTEN_PORT="12345"
-# RUN echo "netstat -an | grep \$LISTEN_PORT > /dev/null" > ./healthcheck.sh && \
-#     chmod +x ./healthcheck.sh
-# HEALTHCHECK --interval=5s CMD ./healthcheck.sh
+ENV ROCKET_ADDRESS=0.0.0.0
 
 ENTRYPOINT ["/app/snoopy"]

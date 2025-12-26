@@ -22,6 +22,10 @@ pub use sqd_messages::signatures;
 use tokio::time::sleep;
 use tracing::{error, info};
 use uuid::Uuid;
+use tikv_jemallocator::Jemalloc;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 const NUMBER_OF_EVIDENCES_IN_ZK_PROOF: usize = 5;
 
@@ -351,7 +355,7 @@ fn run_loop(state: &InternalState) {
                 };
                 info!("Trying Query ID: {:?}", row.query_id);
 
-                let db = Arc::new(MemoryDB::new(false));
+                let db = Arc::new(MemoryDB::new(true));
                 let mut trie = EthTrie::new(db);
                 let assignment_id = match assignment_id_map.get(&row.query_id) {
                     Some(v) => v,
