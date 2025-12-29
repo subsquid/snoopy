@@ -20,12 +20,6 @@ class TaskMonitor {
         if (taskForm) {
             taskForm.addEventListener('submit', (e) => this.submitTask(e));
         }
-
-        // Set default timestamp in modal
-        const timestampInput = document.getElementById('modal-timestamp');
-        if (timestampInput) {
-            timestampInput.value = Math.floor(Date.now() / 1000);
-        }
     }
 
     async loadTasks() {
@@ -248,7 +242,6 @@ class TaskMonitor {
             
             // Reset and close modal
             form.reset();
-            document.getElementById('modal-timestamp').value = Math.floor(Date.now() / 1000);
             closeSubmitTaskModal();
             
             // Reload tasks
@@ -646,12 +639,6 @@ class TaskMonitor {
 function openSubmitTaskModal() {
     const modal = document.getElementById('submit-task-modal');
     if (modal) {
-        // Set default timestamp
-        const timestampInput = document.getElementById('modal-timestamp');
-        if (timestampInput && !timestampInput.value) {
-            timestampInput.value = Math.floor(Date.now() / 1000);
-        }
-        
         modal.classList.add('show');
         document.body.style.overflow = 'hidden';
         
@@ -676,10 +663,6 @@ function closeSubmitTaskModal() {
             const form = document.getElementById('task-form-modal');
             if (form) {
                 form.reset();
-                const timestampInput = document.getElementById('modal-timestamp');
-                if (timestampInput) {
-                    timestampInput.value = Math.floor(Date.now() / 1000);
-                }
             }
         }, 300);
     }
