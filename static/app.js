@@ -186,6 +186,18 @@ class TaskMonitor {
                         <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f9fafb; border-radius: 8px;">${this.escapeHtml(task.comment)}</div>
                     </div>
                 ` : ''}
+                ${task.proof_bytes ? `
+                    <div>
+                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Proof Bytes</label>
+                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.proof_bytes)}</div>
+                    </div>
+                ` : ''}
+                ${task.public_values ? `
+                    <div>
+                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Public Values</label>
+                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0fdf4; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.public_values)}</div>
+                    </div>
+                ` : ''}
             </div>
         `;
 
@@ -616,6 +628,17 @@ class TaskMonitor {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    formatBytes(bytes) {
+        if (!bytes || bytes.length === 0) return 'No data';
+        
+        // Convert bytes to hex string
+        const hexArray = Array.from(bytes, byte => byte.toString(16).padStart(2, '0'));
+        const hexString = hexArray.join('');
+        
+        // Format as 0x... for easy copy-pasting
+        return '0x' + hexString;
     }
 }
 
