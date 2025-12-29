@@ -655,16 +655,7 @@ function openSubmitTaskModal() {
         modal.classList.add('show');
         document.body.style.overflow = 'hidden';
         
-        // Add click outside listener
-        const handleClickOutside = (event) => {
-            if (event.target === modal) {
-                closeSubmitTaskModal();
-            }
-        };
-        modal.addEventListener('click', handleClickOutside);
-        
-        // Store reference to remove later
-        modal._handleClickOutside = handleClickOutside;
+        // Click outside to close functionality disabled for submit modal
         
         // Focus on first input
         setTimeout(() => {
@@ -679,12 +670,6 @@ function closeSubmitTaskModal() {
     if (modal) {
         modal.classList.remove('show');
         document.body.style.overflow = '';
-        
-        // Remove click outside listener
-        if (modal._handleClickOutside) {
-            modal.removeEventListener('click', modal._handleClickOutside);
-            delete modal._handleClickOutside;
-        }
         
         // Reset form after animation
         setTimeout(() => {
