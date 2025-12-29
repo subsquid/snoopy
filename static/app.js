@@ -534,44 +534,8 @@ class TaskMonitor {
                     color: #6b7280;
                 ">×</button>
             </div>
-            <div style="display: grid; gap: 16px;">
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Query ID</label>
-                    <div style="font-size: 14px; color: #1a1a1a; word-break: break-all; margin-top: 4px;">${this.escapeHtml(task.query_id)}</div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Task ID</label>
-                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${task.id}</div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Status</label>
-                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${this.formatStatus(task.status)}</div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Timestamp</label>
-                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${timestamp}</div>
-                </div>
-                ${task.comment ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Comment</label>
-                        <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f9fafb; border-radius: 8px;">${this.escapeHtml(task.comment)}</div>
-                    </div>
-                ` : ''}
-                ${task.proof_bytes ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Proof Bytes</label>
-                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.proof_bytes)}</div>
-                    </div>
-                ` : ''}
-                ${task.public_values ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Public Values</label>
-                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0fdf4; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.public_values)}</div>
-                    </div>
-                ` : ''}
-            </div>
             ${canPostProof ? `
-                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
                     <button id="post-proof-btn" onclick="window.taskMonitor.postProof('${task.id}')" style="
                         width: 100%;
                         padding: 12px 20px;
@@ -596,12 +560,44 @@ class TaskMonitor {
                     <div id="post-proof-status" style="margin-top: 12px; font-size: 13px; color: #6b7280; text-align: center;"></div>
                 </div>
             ` : !isWalletConnected ? `
-                <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
+                <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
                     <div style="padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; font-size: 13px; color: #92400e; text-align: center;">
                         Connect your wallet to post the proof to the blockchain
                     </div>
                 </div>
             ` : ''}
+            <div style="display: grid; gap: 16px;">
+                <div>
+                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Query ID</label>
+                    <div style="font-size: 14px; color: #1a1a1a; word-break: break-all; margin-top: 4px;">${this.escapeHtml(task.query_id)}</div>
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Status</label>
+                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${this.formatStatus(task.status)}</div>
+                </div>
+                <div>
+                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Timestamp</label>
+                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${timestamp}</div>
+                </div>
+                ${task.proof_bytes ? `
+                    <div>
+                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Proof Bytes</label>
+                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.proof_bytes)}</div>
+                    </div>
+                ` : ''}
+                ${task.public_values ? `
+                    <div>
+                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Public Values</label>
+                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0fdf4; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.public_values)}</div>
+                    </div>
+                ` : ''}
+                ${task.comment ? `
+                    <div>
+                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Comment</label>
+                        <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f9fafb; border-radius: 8px;">${this.escapeHtml(task.comment)}</div>
+                    </div>
+                ` : ''}
+            </div>
         `;
 
         modal.className = 'task-modal';
