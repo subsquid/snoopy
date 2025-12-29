@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use alloy::{primitives::Address, signers::local::PrivateKeySigner};
+use alloy::primitives::Address;
 use clap::Parser;
 use clickhouse::Client;
 use eth_trie::{EthTrie, MemoryDB, Trie};
@@ -74,9 +74,6 @@ struct Args {
 
     #[clap(long, env, default_value = "std-long")]
     pub config_name: String,
-
-    #[clap(long, env)]
-    pub signer: PrivateKeySigner,
 
     #[clap(long, env, default_value = "prove-query-result-program")]
     pub program_path: String,

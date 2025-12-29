@@ -177,26 +177,45 @@ class WalletManager {
                 return;
             }
 
-            // Query for transactions from this wallet to manager_address
-            const fromBlock = '0x0';
-            const toBlock = 'latest';
-            
-            // Build filter for logs
-            const logParams = {
-                fromBlock: fromBlock,
-                toBlock: toBlock,
-                address: metadata.manager_address,
-                topics: [
-                    null, // Allow all event signatures
-                    null  // Allow all addresses as from
-                ]
-            };
+            console.log('Loading transactions for wallet:', this.account);
+            console.log('Manager address:', metadata.manager_address);
 
             // Convert wss:// to https:// if needed
             let httpRpcUrl = metadata.rpc_url;
             if (httpRpcUrl.startsWith('wss://')) {
                 httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
             }
+
+            // Get the latest block number to limit our search
+            const latestBlockResponse = await fetch(httpRpcUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'eth_blockNumber',
+                    params: [],
+                    id: 1
+                })
+            });
+
+            const latestBlockResult = await latestBlockResponse.json();
+            const latestBlock = latestBlockResult.result ? parseInt(latestBlockResult.result, 16) : 0;
+            
+            // Search in the last 10,000 blocks to avoid hitting limits
+            const fromBlock = Math.max(0, latestBlock - 10000);
+            const fromBlockHex = '0x' + fromBlock.toString(16);
+            const toBlock = 'latest';
+
+            console.log('Searching blocks:', fromBlock, 'to', toBlock);
+
+            // Query for all transaction logs from the manager contract
+            const logParams = {
+                fromBlock: fromBlockHex,
+                toBlock: toBlock,
+                address: metadata.manager_address
+            };
 
             // Query for past logs
             const response = await fetch(httpRpcUrl, {
@@ -219,41 +238,76 @@ class WalletManager {
             }
 
             const logs = result.result || [];
+            console.log('Found', logs.length, 'total logs');
             
-            // Filter transactions from our wallet
-            const ourTransactions = logs.filter(log => {
-                const fromAddress = log.topics && log.topics[1];
-                // Compare addresses (normalize to lowercase)
-                if (fromAddress) {
-                    const normalizedFrom = fromAddress.replace(/^0x/, '').toLowerCase();
-                    const normalizedAccount = this.account.replace(/^0x/, '').toLowerCase();
-                    return normalizedFrom === normalizedAccount || 
-                           normalizedFrom.startsWith(normalizedAccount.substring(0, 24));
-                }
-                return false;
-            });
-
-            // Add to transaction history
-            for (const log of ourTransactions) {
-                const txHash = log.transactionHash;
-                // Check if not already in history
-                if (!this.transactionHistory.find(t => t.hash === txHash)) {
-                    this.transactionHistory.push({
-                        hash: txHash,
-                        from: this.account,
-                        to: metadata.manager_address,
-                        blockNumber: log.blockNumber ? parseInt(log.blockNumber, 16) : null,
-                        timestamp: null, // Will be fetched separately if needed
-                        status: 'confirmed'
+            // For each log, get the full transaction to check the from address
+            const ourTransactions = [];
+            
+            for (const log of logs) {
+                try {
+                    // Get the full transaction details
+                    const txResponse = await fetch(httpRpcUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0',
+                            method: 'eth_getTransactionByHash',
+                            params: [log.transactionHash],
+                            id: 1
+                        })
                     });
+
+                    const txResult = await txResponse.json();
+                    if (txResult.result && txResult.result.from) {
+                        const txFrom = txResult.result.from.toLowerCase();
+                        const ourAccount = this.account.toLowerCase();
+                        
+                        // Check if this transaction is from our wallet
+                        if (txFrom === ourAccount) {
+                            ourTransactions.push({
+                                hash: log.transactionHash,
+                                from: txResult.result.from,
+                                to: txResult.result.to,
+                                blockNumber: log.blockNumber ? parseInt(log.blockNumber, 16) : null,
+                                timestamp: null, // Will be fetched separately if needed
+                                status: 'confirmed'
+                            });
+                        }
+                    }
+                } catch (txError) {
+                    console.warn('Error fetching transaction:', log.transactionHash, txError);
+                    continue;
                 }
             }
+
+            console.log('Found', ourTransactions.length, 'transactions from our wallet');
+
+            // Add to transaction history (avoid duplicates)
+            for (const tx of ourTransactions) {
+                if (!this.transactionHistory.find(t => t.hash === tx.hash)) {
+                    this.transactionHistory.push(tx);
+                }
+            }
+
+            // Sort by block number (most recent first)
+            this.transactionHistory.sort((a, b) => {
+                if (!a.blockNumber && !b.blockNumber) return 0;
+                if (!a.blockNumber) return 1;
+                if (!b.blockNumber) return -1;
+                return b.blockNumber - a.blockNumber;
+            });
+
+            // Fetch timestamps for transactions that don't have them
+            await this.fetchTransactionTimestamps();
 
             // Render transactions
             this.renderTransactions();
 
         } catch (error) {
             console.warn('Failed to load existing transactions:', error);
+            this.showToast('Failed to load transaction history', true);
         }
     }
 
@@ -335,31 +389,119 @@ class WalletManager {
         const statusClass = tx.status;
         const timestamp = tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Pending...';
         
+        // Get blockchain explorer URL based on network
+        const getExplorerUrl = (txHash) => {
+            const metadata = taskMonitor.metadata;
+            if (!metadata) return '#';
+            
+            const network = metadata.blockchain_network.toLowerCase();
+            if (network === 'mainnet') {
+                return `https://etherscan.io/tx/${txHash}`;
+            } else {
+                return `https://${network}.etherscan.io/tx/${txHash}`;
+            }
+        };
+        
         return `
             <div class="tx-card">
                 <div class="tx-header">
-                    <div class="tx-hash">${shortHash}</div>
+                    <div class="tx-hash-container">
+                        <a href="${getExplorerUrl(tx.hash)}" target="_blank" class="tx-hash-link" title="View on blockchain explorer">
+                            ${shortHash}
+                        </a>
+                    </div>
                     <div class="tx-status ${statusClass}">${tx.status}</div>
                 </div>
                 <div class="tx-details">
                     <div class="tx-detail">
                         <div class="tx-detail-label">From</div>
-                        <div class="tx-detail-value address">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</div>
+                        <div class="tx-detail-value address" title="${tx.from}">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</div>
                     </div>
                     <div class="tx-detail">
                         <div class="tx-detail-label">To</div>
-                        <div class="tx-detail-value address">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</div>
+                        <div class="tx-detail-value address" title="${tx.to}">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</div>
                     </div>
                     ${tx.blockNumber ? `
                         <div class="tx-detail">
                             <div class="tx-detail-label">Block</div>
-                            <div class="tx-detail-value">#${tx.blockNumber}</div>
+                            <div class="tx-detail-value">#${tx.blockNumber.toLocaleString()}</div>
                         </div>
                     ` : ''}
                 </div>
-                <div style="font-size: 12px; color: #6b7280;">${timestamp}</div>
+                <div class="tx-footer">
+                    <div class="tx-timestamp">${timestamp}</div>
+                    ${tx.status === 'confirmed' ? `
+                        <div class="tx-explorer-link">
+                            <a href="${getExplorerUrl(tx.hash)}" target="_blank" title="View on blockchain explorer">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M18 13V19C18 19.5304 17.7893 20.0391 17.4142 20.4142C17.0391 20.7893 16.5304 21 16 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V8C3 7.46957 3.21071 6.96086 3.58579 6.58579C3.96086 6.21071 4.46957 6 5 6H11M15 3H21V9M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                View
+                            </a>
+                        </div>
+                    ` : ''}
+                </div>
             </div>
         `;
+    }
+
+    async fetchTransactionTimestamps() {
+        try {
+            if (!this.web3 || this.transactionHistory.length === 0) return;
+
+            // Get RPC URL from metadata
+            const metadata = await taskMonitor.loadMetadata();
+            if (!metadata) return;
+
+            let httpRpcUrl = metadata.rpc_url;
+            if (httpRpcUrl.startsWith('wss://')) {
+                httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
+            }
+
+            // Fetch timestamps for transactions that don't have them
+            for (const tx of this.transactionHistory) {
+                if (tx.timestamp || !tx.blockNumber) continue;
+
+                try {
+                    const response = await fetch(httpRpcUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            jsonrpc: '2.0',
+                            method: 'eth_getBlockByNumber',
+                            params: ['0x' + tx.blockNumber.toString(16), false],
+                            id: 1
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.result && result.result.timestamp) {
+                        tx.timestamp = parseInt(result.result.timestamp, 16) * 1000; // Convert to milliseconds
+                    }
+                } catch (blockError) {
+                    console.warn('Error fetching block:', tx.blockNumber, blockError);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to fetch transaction timestamps:', error);
+        }
+    }
+
+    async refreshTransactions() {
+        if (!this.isConnected) {
+            this.showToast('Connect your wallet first', true);
+            return;
+        }
+
+        this.showToast('Refreshing transactions...', false);
+        
+        // Clear existing history and reload
+        this.transactionHistory = [];
+        await this.loadExistingTransactions();
+        
+        this.showToast('Transaction history refreshed');
     }
 
     clearTransactionHistory() {
@@ -1383,6 +1525,12 @@ function connectWallet() {
 function clearTransactionHistory() {
     if (window.taskMonitor && window.taskMonitor.walletManager) {
         window.taskMonitor.walletManager.clearTransactionHistory();
+    }
+}
+
+function refreshTransactions() {
+    if (window.taskMonitor && window.taskMonitor.walletManager) {
+        window.taskMonitor.walletManager.refreshTransactions();
     }
 }
 
