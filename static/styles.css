@@ -78,6 +78,41 @@ body, html {
     color: #10b981;
 }
 
+.header-wallet-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #7c3aed;
+    border: 1px solid #7c3aed;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: inherit;
+}
+
+.header-wallet-btn:hover {
+    background: #6d28d9;
+    border-color: #6d28d9;
+}
+
+.header-wallet-btn:active {
+    transform: translateY(1px);
+}
+
+.header-wallet-btn.connected {
+    background: #10b981;
+    border-color: #10b981;
+}
+
+.header-wallet-btn.connected:hover {
+    background: #059669;
+    border-color: #059669;
+}
+
 /* Main content */
 .main {
     padding: 48px 0;
@@ -113,30 +148,6 @@ body, html {
 }
 
 .refresh-tx-btn:active {
-    transform: translateY(1px);
-}
-
-.clear-tx-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 8px;
-    color: #374151;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.clear-tx-btn:hover {
-    background: #e5e7eb;
-    border-color: #9ca3af;
-}
-
-.clear-tx-btn:active {
     transform: translateY(1px);
 }
 
@@ -1160,7 +1171,18 @@ body, html {
     }
     
     .header-stats {
-        gap: 24px;
+        gap: 16px;
+    }
+    
+    .header-wallet-btn {
+        font-size: 11px;
+        padding: 4px 8px;
+        gap: 4px;
+    }
+    
+    .header-wallet-btn svg {
+        width: 12px;
+        height: 12px;
     }
     
     .section-header {

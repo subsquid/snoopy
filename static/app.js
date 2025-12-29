@@ -113,31 +113,31 @@ class WalletManager {
     }
 
     updateUI() {
-        const walletStatus = document.getElementById('wallet-status');
         const connectBtn = document.getElementById('wallet-connect-btn');
 
         if (this.isConnected && this.account) {
             const shortAddress = this.account.slice(0, 6) + '...' + this.account.slice(-4);
-            walletStatus.textContent = shortAddress;
-            walletStatus.style.color = '#10b981';
             
-            connectBtn.textContent = 'Disconnect';
+            connectBtn.textContent = shortAddress;
             connectBtn.classList.add('connected');
             connectBtn.onclick = () => this.disconnect();
         } else {
-            walletStatus.textContent = 'Disconnected';
-            walletStatus.style.color = '#6b7280';
-            
-            connectBtn.textContent = 'Connect Wallet';
+            connectBtn.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/>
+                    <path d="M15 12L12 15L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M12 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                Connect Wallet
+            `;
             connectBtn.classList.remove('connected');
             connectBtn.onclick = () => this.connect();
         }
     }
 
     updateWalletStatus(status) {
-        const walletStatus = document.getElementById('wallet-status');
-        walletStatus.textContent = status;
-        walletStatus.style.color = '#dc2626';
+        // No-op since we removed the wallet status display from header
+        console.log('Wallet status:', status);
     }
 
     showToast(message, isError = false) {
