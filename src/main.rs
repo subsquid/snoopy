@@ -97,6 +97,8 @@ struct Task {
     creation_ts: u64,
     status: TaskStatus,
     comment: Option<String>,
+    proof_bytes: Option<Vec<u8>>,
+    public_values: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -136,6 +138,8 @@ async fn get_task_status(task_id: String, state: &State<InternalState>) -> Json<
             creation_ts: 0,
             status: TaskStatus::NotFound,
             comment: None,
+            proof_bytes: None,
+            public_values: None,
         })
     }
 }
@@ -179,6 +183,22 @@ fn set_task_status(
     task.comment = comment;
 }
 
+fn set_task_status_with_proof(
+    tasks: &Arc<Mutex<HashMap<Uuid, Task>>>,
+    task_id: Uuid,
+    status: TaskStatus,
+    comment: Option<String>,
+    proof_bytes: Option<Vec<u8>>,
+    public_values: Option<Vec<u8>>,
+) {
+    let mut tasks_lock = tasks.lock().unwrap();
+    let task = tasks_lock.get_mut(&task_id).unwrap();
+    task.status = status;
+    task.comment = comment;
+    task.proof_bytes = proof_bytes;
+    task.public_values = public_values;
+}
+
 #[derive(Deserialize, Debug)]
 #[serde(crate = "rocket::serde")]
 struct TaskDescription {
@@ -203,6 +223,8 @@ async fn submit_task(task: Json<TaskDescription>, state: &State<InternalState>) 
             creation_ts,
             status: TaskStatus::Pending,
             comment: None,
+            proof_bytes: None,
+            public_values: None,
         },
     );
     Json(task_id)
@@ -432,11 +454,13 @@ fn run_loop(state: &InternalState) {
                     continue;
                 }
             };
-            set_task_status(
+            set_task_status_with_proof(
                 &local_tasks,
                 task_id,
                 TaskStatus::Running,
                 Some("Got zk proof".to_owned()),
+                Some(proof_bytes.clone()),
+                Some(public_values.clone()),
             );
 
             let res = match post_proof(
