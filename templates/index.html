@@ -10,6 +10,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.10.4/dist/web3.min.js"></script>
 </head>
 <body>
     <div id="root">
@@ -30,6 +31,10 @@
                             <span class="stat-label">Completed</span>
                             <span class="stat-value completed" id="completed-tasks">0</span>
                         </div>
+                        <div class="stat">
+                            <span class="stat-label">Wallet</span>
+                            <span class="stat-value" id="wallet-status">Disconnected</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -41,6 +46,14 @@
                     <div class="section-header">
                         <h2>Active Tasks</h2>
                         <div class="header-buttons">
+                            <button class="wallet-connect-btn" id="wallet-connect-btn" onclick="connectWallet()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M15 12L12 15L9 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M12 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                                Connect Wallet
+                            </button>
                             <button class="eth-events-btn" onclick="openEthEventsModal()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -53,6 +66,7 @@
                                 </svg>
                                 Submit Task
                             </button>
+
                             <button class="refresh-btn" onclick="refreshTasks()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -67,6 +81,28 @@
                         <div class="loading-state">
                             <div class="subsquid-loader"></div>
                             <p>Loading tasks...</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Transaction History Section -->
+                <div class="transactions-section" id="transactions-section" style="display: none;">
+                    <div class="section-header">
+                        <h2>Transaction History</h2>
+                        <div class="header-buttons">
+                            <button class="clear-tx-btn" onclick="clearTransactionHistory()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 6H5H21M8 6V4C8 3.44872 8.44872 3 9 3H15C15.5513 3 16 3.44872 16 4V6M19 6V20C19 20.5523 18.5523 21 18 21H6C5.44772 21 5 20.5523 5 20V6M10 11V17M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Clear History
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="transactions-container" class="transactions-container">
+                        <div class="empty-state">
+                            <h3>No transactions yet</h3>
+                            <p>Your transaction history will appear here</p>
                         </div>
                     </div>
                 </div>
@@ -154,8 +190,34 @@
         </div>
     </div>
 
+
+
     <div id="toast" class="toast"></div>
 
+    <script>
+        // Check if ethers.js loaded properly
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                if (typeof Web3 === 'undefined') {
+                    console.error('Web3.js failed to load!');
+                    const walletStatus = document.getElementById('wallet-status');
+                    if (walletStatus) {
+                        walletStatus.textContent = 'Library Error';
+                        walletStatus.style.color = '#dc2626';
+                    }
+                    
+                    const connectBtn = document.getElementById('wallet-connect-btn');
+                    if (connectBtn) {
+                        connectBtn.onclick = function() {
+                            alert('Web3 library failed to load. Please refresh the page.');
+                        };
+                    }
+                } else {
+                    console.log('Web3.js loaded successfully');
+                }
+            }, 1000);
+        });
+    </script>
     <script src="/app.js"></script>
 </body>
 </html>

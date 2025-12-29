@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use snoopy::{
     PrivateProofData, build_zk_proof, filter_eligible_queries, get_assignment_id_map,
     get_siblings_queries, get_signatures, make_mpt_proof, make_proof_data, populate_trie,
-    post_proof,
 };
 pub use sqd_messages::query_finished::Result as QueryFinishedResult;
 pub use sqd_messages::signatures;
@@ -52,6 +51,9 @@ struct Args {
 
     #[clap(long, env, default_value = "mainnet")]
     pub network: String,
+
+    #[clap(long, env, default_value = "sepolia")]
+    pub blockchain_network: String,
 
     #[clap(long, env, default_value = "wss://ethereum-sepolia-rpc.publicnode.com")]
     pub rpc_url: String,
@@ -104,6 +106,7 @@ struct Task {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Metadata {
     network: String,
+    blockchain_network: String,
     rpc_url: String,
     commiter_address: String,
     manager_address: String,
@@ -149,6 +152,7 @@ async fn get_metadata(state: &State<InternalState>) -> Json<Metadata> {
     let config = &state.config;
     Json(Metadata {
         network: config.network.clone(),
+        blockchain_network: config.blockchain_network.clone(),
         rpc_url: config.rpc_url.clone(),
         commiter_address: config.commiter_address.to_string(),
         manager_address: config.manager_address.to_string(),
@@ -269,9 +273,6 @@ fn run_loop(state: &InternalState) {
             let commiter_address = local_config.commiter_address;
             let ts_tolerance = local_config.ts_tolerance;
             let ts_search_range = local_config.ts_search_range;
-            let manager_address = local_config.manager_address;
-            let config_name = local_config.config_name.clone();
-            let signer: PrivateKeySigner = local_config.signer.clone();
             let network = local_config.network.clone();
             let program_path = local_config.program_path.clone();
 
@@ -457,45 +458,10 @@ fn run_loop(state: &InternalState) {
             set_task_status_with_proof(
                 &local_tasks,
                 task_id,
-                TaskStatus::Running,
+                TaskStatus::Completed,
                 Some("Got zk proof".to_owned()),
                 Some(proof_bytes.clone()),
                 Some(public_values.clone()),
-            );
-
-            let res = match post_proof(
-                proof_bytes,
-                public_values,
-                &rpc_url,
-                signer,
-                manager_address,
-                &config_name,
-            )
-            .await
-            {
-                Ok(tx) => tx,
-                Err(err) => {
-                    set_task_status(
-                        &local_tasks,
-                        task_id,
-                        TaskStatus::Failed,
-                        Some(format!("Failed to post proof: {err}")),
-                    );
-                    continue;
-                }
-            };
-
-            let tx = res
-                .iter()
-                .map(|v| format!("{v:02x}"))
-                .collect::<Vec<_>>()
-                .join("");
-
-            set_task_status(
-                &local_tasks,
-                task_id,
-                TaskStatus::Completed,
-                Some(format!("Transaction: {tx}")),
             );
         }
     });
