@@ -373,7 +373,11 @@ class WalletManager {
 
         if (this.transactionHistory.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
+                <div class="table-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                     <h3>No transactions yet</h3>
                     <p>Your transaction history will appear here</p>
                 </div>
@@ -381,11 +385,29 @@ class WalletManager {
             return;
         }
 
-        container.innerHTML = this.transactionHistory.map(tx => this.createTransactionCard(tx)).join('');
+        container.innerHTML = `
+            <div class="table-wrapper">
+                <table class="sqd-table">
+                    <thead>
+                        <tr>
+                            <th>Transaction Hash</th>
+                            <th>Status</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Block</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.transactionHistory.map(tx => this.createTransactionRow(tx)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
-    createTransactionCard(tx) {
-        const shortHash = tx.hash.slice(0, 10) + '...' + tx.hash.slice(-8);
+    createTransactionRow(tx) {
+        const shortHash = tx.hash.slice(0, 14) + '...' + tx.hash.slice(-10);
         const statusClass = tx.status;
         const timestamp = tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Pending...';
         
@@ -403,45 +425,18 @@ class WalletManager {
         };
         
         return `
-            <div class="tx-card">
-                <div class="tx-header">
-                    <div class="tx-hash-container">
-                        <a href="${getExplorerUrl(tx.hash)}" target="_blank" class="tx-hash-link" title="View on blockchain explorer">
-                            ${shortHash}
-                        </a>
-                    </div>
-                    <div class="tx-status ${statusClass}">${tx.status}</div>
-                </div>
-                <div class="tx-details">
-                    <div class="tx-detail">
-                        <div class="tx-detail-label">From</div>
-                        <div class="tx-detail-value address" title="${tx.from}">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</div>
-                    </div>
-                    <div class="tx-detail">
-                        <div class="tx-detail-label">To</div>
-                        <div class="tx-detail-value address" title="${tx.to}">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</div>
-                    </div>
-                    ${tx.blockNumber ? `
-                        <div class="tx-detail">
-                            <div class="tx-detail-label">Block</div>
-                            <div class="tx-detail-value">#${tx.blockNumber.toLocaleString()}</div>
-                        </div>
-                    ` : ''}
-                </div>
-                <div class="tx-footer">
-                    <div class="tx-timestamp">${timestamp}</div>
-                    ${tx.status === 'confirmed' ? `
-                        <div class="tx-explorer-link">
-                            <a href="${getExplorerUrl(tx.hash)}" target="_blank" title="View on blockchain explorer">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M18 13V19C18 19.5304 17.7893 20.0391 17.4142 20.4142C17.0391 20.7893 16.5304 21 16 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V8C3 7.46957 3.21071 6.96086 3.58579 6.58579C3.96086 6.21071 4.46957 6 5 6H11M15 3H21V9M10 14L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                View
-                            </a>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
+            <tr>
+                <td>
+                    <a href="${getExplorerUrl(tx.hash)}" target="_blank" class="mono" title="View on blockchain explorer">
+                        ${shortHash}
+                    </a>
+                </td>
+                <td><span class="status-badge ${statusClass}">${tx.status}</span></td>
+                <td class="mono">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</td>
+                <td class="mono">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</td>
+                <td>${tx.blockNumber ? '#' + tx.blockNumber.toLocaleString() : '-'}</td>
+                <td class="text-muted">${timestamp}</td>
+            </tr>
         `;
     }
 
@@ -560,7 +555,12 @@ class TaskMonitor {
 
         if (this.tasks.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
+                <div class="table-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" stroke-width="2"/
+                        <path d="M3 9H21" stroke="currentColor" stroke-width="2"/
+                        <path d="M9 21V9" stroke="currentColor" stroke-width="2"/
+                    </svg>
                     <h3>No tasks found</h3>
                     <p>Submit your first task using the form below</p>
                 </div>
@@ -568,36 +568,48 @@ class TaskMonitor {
             return;
         }
 
-        container.innerHTML = this.tasks.map(task => this.createTaskCard(task)).join('');
+        container.innerHTML = `
+            <div class="table-wrapper">
+                <table class="sqd-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Query ID</th>
+                            <th>Status</th>
+                            <th>Timestamp</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.tasks.map((task, index) => this.createTaskRow(task, index + 1)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
-    createTaskCard(task) {
+    createTaskRow(task, rowNum) {
         const timestamp = new Date(task.ts * 1000).toLocaleString();
         const statusClass = task.status.toLowerCase().replace('_', '-');
-        const commentClass = task.status.toLowerCase();
         
         return `
-            <div class="task-card" onclick="taskMonitor.showTaskDetails('${task.id}')">
-                <div class="task-details">
-                    <div class="task-detail">
-                        <div class="task-detail-label">Query ID</div>
-                        <div class="task-detail-value">${this.escapeHtml(task.query_id)}</div>
+            <tr>
+                <td><span class="row-number">${rowNum}</span></td>
+                <td class="mono">${this.escapeHtml(task.query_id)}</td>
+                <td><span class="status-badge ${statusClass}">${this.formatStatus(task.status)}</span></td>
+                <td class="text-muted">${timestamp}</td>
+                <td>
+                    <div class="table-actions">
+                        <button class="table-action-btn" onclick="taskMonitor.showTaskDetails('${task.id}')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
+                            </svg>
+                            View
+                        </button>
                     </div>
-                    <div class="task-detail">
-                        <div class="task-detail-label">Timestamp</div>
-                        <div class="task-detail-value">${timestamp}</div>
-                    </div>
-                    <div class="task-detail">
-                        <div class="task-detail-label">Status</div>
-                        <div class="task-detail-value">${this.formatStatus(task.status)}</div>
-                    </div>
-                </div>
-                ${task.comment ? `
-                    <div class="task-comment ${commentClass}">
-                        ${this.escapeHtml(task.comment)}
-                    </div>
-                ` : ''}
-            </div>
+                </td>
+            </tr>
         `;
     }
 
@@ -1093,7 +1105,7 @@ class TaskMonitor {
             // Show loading state
             const container = document.getElementById('events-container');
             container.innerHTML = `
-                <div class="loading-state">
+                <div class="table-loading">
                     <div class="subsquid-loader"></div>
                     <p>Loading Ethereum events...</p>
                 </div>
@@ -1296,7 +1308,10 @@ class TaskMonitor {
 
         if (this.ethEvents.length === 0) {
             container.innerHTML = `
-                <div class="empty-state">
+                <div class="table-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
                     <h3>No events found</h3>
                     <p>No events found for the specified block range</p>
                 </div>
@@ -1304,10 +1319,26 @@ class TaskMonitor {
             return;
         }
 
-        container.innerHTML = this.ethEvents.map(event => this.createEventCard(event)).join('');
+        container.innerHTML = `
+            <div class="table-wrapper">
+                <table class="sqd-table">
+                    <thead>
+                        <tr>
+                            <th>Event</th>
+                            <th>Block</th>
+                            <th>Transaction</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.ethEvents.map(event => this.createEventRow(event)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
-    createEventCard(event) {
+    createEventRow(event) {
         const timestamp = new Date(event.blockNumber * 1000).toLocaleString();
         const eventTypeClass = event.type.toLowerCase();
         
@@ -1315,66 +1346,24 @@ class TaskMonitor {
         
         switch (event.type) {
             case 'FraudFound':
-                eventDataHtml = `
-                    <div class="event-data">
-                        <div class="event-detail">
-                            <span class="event-detail-label">Peer ID:</span>
-                            <span class="event-detail-value">${event.data.peerId}</span>
-                        </div>
-                        <div class="event-detail">
-                            <span class="event-detail-label">Timestamp:</span>
-                            <span class="event-detail-value">${new Date(event.data.timestamp * 1000).toLocaleString()}</span>
-                        </div>
-                    </div>
-                `;
+                eventDataHtml = `<span class="mono-sm">Peer: ${event.data.peerId?.slice(0, 12)}...</span>`;
                 break;
             case 'RoleAdminChanged':
             case 'RoleGranted':
             case 'RoleRevoked':
-                eventDataHtml = `
-                    <div class="event-data">
-                        <div class="event-detail">
-                            <span class="event-detail-label">Role:</span>
-                            <span class="event-detail-value">${event.data.role || 'N/A'}</span>
-                        </div>
-                        <div class="event-detail">
-                            <span class="event-detail-label">Account:</span>
-                            <span class="event-detail-value">${event.data.account || 'N/A'}</span>
-                        </div>
-                        <div class="event-detail">
-                            <span class="event-detail-label">Sender:</span>
-                            <span class="event-detail-value">${event.data.sender || 'N/A'}</span>
-                        </div>
-                    </div>
-                `;
+                eventDataHtml = `<span class="mono-sm">${event.type}</span>`;
                 break;
             default:
-                eventDataHtml = `
-                    <div class="event-data">
-                        <div class="event-detail">
-                            <span class="event-detail-label">Signature:</span>
-                            <span class="event-detail-value">${(event.data.signature || 'unknown').slice(0, 10)}...</span>
-                        </div>
-                        <div class="event-detail">
-                            <span class="event-detail-label">Data:</span>
-                            <span class="event-detail-value">${event.data.raw ? event.data.raw.slice(0, 20) + '...' : 'No data'}</span>
-                        </div>
-                    </div>
-                `;
+                eventDataHtml = `<span class="mono-sm">${(event.data.signature || 'unknown').slice(0, 16)}...</span>`;
         }
         
         return `
-            <div class="event-card ${eventTypeClass}">
-                <div class="event-header">
-                    <div class="event-type">${event.type}</div>
-                    <div class="event-block">Block #${event.blockNumber}</div>
-                </div>
-                ${eventDataHtml}
-                <div class="event-footer">
-                    <div class="event-tx">TX: ${event.transactionHash.slice(0, 10)}...</div>
-                    <div class="event-time">${timestamp}</div>
-                </div>
-            </div>
+            <tr class="event-card ${eventTypeClass}">
+                <td><span class="status-badge ${eventTypeClass}">${event.type}</span></td>
+                <td>#${event.blockNumber.toLocaleString()}</td>
+                <td class="mono-sm">${event.transactionHash.slice(0, 14)}...${event.transactionHash.slice(-8)}</td>
+                <td>${eventDataHtml}</td>
+            </tr>
         `;
     }
 
