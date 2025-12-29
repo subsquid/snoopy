@@ -6,6 +6,7 @@ class WalletManager {
         this.signer = null;
         this.account = null;
         this.isConnected = false;
+        this.transactionHistory = []; // Track transactions to manager_address
         this.init();
     }
 
@@ -87,6 +88,11 @@ class WalletManager {
 
             this.updateUI();
             this.showToast('Wallet connected successfully!');
+            
+            // Show transactions section and load existing transactions
+            this.showTransactionsSection();
+            await this.loadExistingTransactions();
+            
             return true;
         } catch (error) {
             console.error('Error connecting wallet:', error);
@@ -102,6 +108,7 @@ class WalletManager {
         this.account = null;
         this.isConnected = false;
         this.updateUI();
+        this.hideTransactionsSection();
         this.showToast('Wallet disconnected');
     }
 
@@ -144,6 +151,221 @@ class WalletManager {
         setTimeout(() => {
             toast.classList.remove('show');
         }, 3000);
+    }
+
+    // Transaction tracking methods
+    showTransactionsSection() {
+        const section = document.getElementById('transactions-section');
+        if (section) {
+            section.style.display = 'block';
+        }
+    }
+
+    hideTransactionsSection() {
+        const section = document.getElementById('transactions-section');
+        if (section) {
+            section.style.display = 'none';
+        }
+    }
+
+    async loadExistingTransactions() {
+        try {
+            // Load metadata to get manager_address
+            const metadata = await taskMonitor.loadMetadata();
+            if (!metadata || !metadata.manager_address) {
+                console.warn('Manager address not found in metadata');
+                return;
+            }
+
+            // Query for transactions from this wallet to manager_address
+            const fromBlock = '0x0';
+            const toBlock = 'latest';
+            
+            // Build filter for logs
+            const logParams = {
+                fromBlock: fromBlock,
+                toBlock: toBlock,
+                address: metadata.manager_address,
+                topics: [
+                    null, // Allow all event signatures
+                    null  // Allow all addresses as from
+                ]
+            };
+
+            // Convert wss:// to https:// if needed
+            let httpRpcUrl = metadata.rpc_url;
+            if (httpRpcUrl.startsWith('wss://')) {
+                httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
+            }
+
+            // Query for past logs
+            const response = await fetch(httpRpcUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'eth_getLogs',
+                    params: [logParams],
+                    id: 1
+                })
+            });
+
+            const result = await response.json();
+            if (result.error) {
+                console.warn('Error fetching existing transactions:', result.error.message);
+                return;
+            }
+
+            const logs = result.result || [];
+            
+            // Filter transactions from our wallet
+            const ourTransactions = logs.filter(log => {
+                const fromAddress = log.topics && log.topics[1];
+                // Compare addresses (normalize to lowercase)
+                if (fromAddress) {
+                    const normalizedFrom = fromAddress.replace(/^0x/, '').toLowerCase();
+                    const normalizedAccount = this.account.replace(/^0x/, '').toLowerCase();
+                    return normalizedFrom === normalizedAccount || 
+                           normalizedFrom.startsWith(normalizedAccount.substring(0, 24));
+                }
+                return false;
+            });
+
+            // Add to transaction history
+            for (const log of ourTransactions) {
+                const txHash = log.transactionHash;
+                // Check if not already in history
+                if (!this.transactionHistory.find(t => t.hash === txHash)) {
+                    this.transactionHistory.push({
+                        hash: txHash,
+                        from: this.account,
+                        to: metadata.manager_address,
+                        blockNumber: log.blockNumber ? parseInt(log.blockNumber, 16) : null,
+                        timestamp: null, // Will be fetched separately if needed
+                        status: 'confirmed'
+                    });
+                }
+            }
+
+            // Render transactions
+            this.renderTransactions();
+
+        } catch (error) {
+            console.warn('Failed to load existing transactions:', error);
+        }
+    }
+
+    addTransaction(txHash, toAddress) {
+        // Check if transaction already exists
+        if (this.transactionHistory.find(t => t.hash === txHash)) {
+            return;
+        }
+
+        const transaction = {
+            hash: txHash,
+            from: this.account,
+            to: toAddress,
+            blockNumber: null,
+            timestamp: new Date(),
+            status: 'pending'
+        };
+
+        this.transactionHistory.unshift(transaction);
+        this.renderTransactions();
+
+        // Listen for transaction confirmation
+        this.watchTransactionConfirmation(txHash);
+    }
+
+    watchTransactionConfirmation(txHash) {
+        if (!this.web3) return;
+
+        const checkInterval = setInterval(() => {
+            this.web3.eth.getTransactionReceipt(txHash)
+                .then(receipt => {
+                    if (receipt) {
+                        clearInterval(checkInterval);
+                        
+                        const tx = this.transactionHistory.find(t => t.hash === txHash);
+                        if (tx) {
+                            tx.status = receipt.status ? 'confirmed' : 'failed';
+                            tx.blockNumber = receipt.blockNumber;
+                            this.renderTransactions();
+                            
+                            if (tx.status === 'confirmed') {
+                                this.showToast('Transaction confirmed!');
+                            } else {
+                                this.showToast('Transaction failed', true);
+                            }
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.warn('Error checking transaction:', err);
+                });
+        }, 2000);
+
+        // Stop watching after 5 minutes
+        setTimeout(() => {
+            clearInterval(checkInterval);
+        }, 300000);
+    }
+
+    renderTransactions() {
+        const container = document.getElementById('transactions-container');
+        if (!container) return;
+
+        if (this.transactionHistory.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <h3>No transactions yet</h3>
+                    <p>Your transaction history will appear here</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = this.transactionHistory.map(tx => this.createTransactionCard(tx)).join('');
+    }
+
+    createTransactionCard(tx) {
+        const shortHash = tx.hash.slice(0, 10) + '...' + tx.hash.slice(-8);
+        const statusClass = tx.status;
+        const timestamp = tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Pending...';
+        
+        return `
+            <div class="tx-card">
+                <div class="tx-header">
+                    <div class="tx-hash">${shortHash}</div>
+                    <div class="tx-status ${statusClass}">${tx.status}</div>
+                </div>
+                <div class="tx-details">
+                    <div class="tx-detail">
+                        <div class="tx-detail-label">From</div>
+                        <div class="tx-detail-value address">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</div>
+                    </div>
+                    <div class="tx-detail">
+                        <div class="tx-detail-label">To</div>
+                        <div class="tx-detail-value address">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</div>
+                    </div>
+                    ${tx.blockNumber ? `
+                        <div class="tx-detail">
+                            <div class="tx-detail-label">Block</div>
+                            <div class="tx-detail-value">#${tx.blockNumber}</div>
+                        </div>
+                    ` : ''}
+                </div>
+                <div style="font-size: 12px; color: #6b7280;">${timestamp}</div>
+            </div>
+        `;
+    }
+
+    clearTransactionHistory() {
+        this.transactionHistory = [];
+        this.renderTransactions();
+        this.showToast('Transaction history cleared');
     }
 }
 
@@ -518,6 +740,11 @@ class TaskMonitor {
             // Send transaction - MetaMask will estimate gas automatically
             const receipt = await web3.eth.sendTransaction(tx);
             
+            // Track the transaction
+            if (this.walletManager && this.walletManager.addTransaction) {
+                this.walletManager.addTransaction(receipt.transactionHash, metadata.manager_address);
+            }
+            
             // Success
             if (btn) {
                 btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Proof Posted!';
@@ -640,6 +867,64 @@ class TaskMonitor {
         setTimeout(() => {
             toast.classList.remove('show');
         }, 3000);
+    }
+
+    async fetchLatestBlockNumber() {
+        try {
+            if (!this.metadata) {
+                await this.loadMetadata();
+            }
+            
+            let httpRpcUrl = this.metadata.rpc_url;
+            if (httpRpcUrl.startsWith('wss://')) {
+                httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
+            }
+            
+            const response = await fetch(httpRpcUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'eth_blockNumber',
+                    params: [],
+                    id: 1
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.error) {
+                console.warn('Failed to fetch latest block:', result.error.message);
+                return null;
+            }
+            
+            // Convert hex to decimal
+            const latestBlock = parseInt(result.result, 16);
+            return latestBlock;
+        } catch (error) {
+            console.warn('Failed to fetch latest block number:', error);
+            return null;
+        }
+    }
+
+    async setDefaultBlockRange() {
+        const fromBlockInput = document.getElementById('from-block');
+        const toBlockInput = document.getElementById('to-block');
+        
+        if (!fromBlockInput || !toBlockInput) return;
+        
+        const latestBlock = await this.fetchLatestBlockNumber();
+        
+        if (latestBlock !== null && latestBlock > 40000) {
+            const defaultFromBlock = latestBlock - 40000;
+            fromBlockInput.value = defaultFromBlock;
+        } else {
+            fromBlockInput.value = '0';
+        }
+        
+        toBlockInput.value = 'latest';
     }
 
     async loadMetadata() {
@@ -1051,10 +1336,15 @@ function openEthEventsModal() {
         // Store reference to remove later
         modal._handleClickOutside = handleClickOutside;
         
-        // Load metadata if not already loaded
-        if (window.taskMonitor && !window.taskMonitor.metadata) {
-            window.taskMonitor.loadMetadata().catch(error => {
+        // Load metadata and set default block range
+        if (window.taskMonitor) {
+            window.taskMonitor.loadMetadata().then(() => {
+                window.taskMonitor.setDefaultBlockRange();
+            }).catch(error => {
                 console.error('Failed to load metadata:', error);
+                // Set default to 0 if metadata fails to load
+                const fromBlockInput = document.getElementById('from-block');
+                if (fromBlockInput) fromBlockInput.value = '0';
             });
         }
     }
@@ -1091,6 +1381,12 @@ function filterEvents() {
 function connectWallet() {
     if (window.taskMonitor && window.taskMonitor.walletManager) {
         window.taskMonitor.walletManager.connect();
+    }
+}
+
+function clearTransactionHistory() {
+    if (window.taskMonitor && window.taskMonitor.walletManager) {
+        window.taskMonitor.walletManager.clearTransactionHistory();
     }
 }
 

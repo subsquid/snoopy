@@ -42,6 +42,28 @@
 
         <main class="main">
             <div class="container">
+                <!-- Transaction History Section -->
+                <div class="transactions-section" id="transactions-section" style="display: none;">
+                    <div class="section-header">
+                        <h2>My Transactions</h2>
+                        <div class="header-buttons">
+                            <button class="clear-tx-btn" onclick="clearTransactionHistory()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 6H5H21M8 6V4C8 3.44872 8.44872 3 9 3H15C15.5513 3 16 3.44872 16 4V6M19 6V20C19 20.5523 18.5523 21 18 21H6C5.44772 21 5 20.5523 5 20V6M10 11V17M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Clear History
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="transactions-container" class="transactions-container">
+                        <div class="empty-state">
+                            <h3>No transactions yet</h3>
+                            <p>Your transaction history will appear here</p>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="tasks-section">
                     <div class="section-header">
                         <h2>Active Tasks</h2>
@@ -81,28 +103,6 @@
                         <div class="loading-state">
                             <div class="subsquid-loader"></div>
                             <p>Loading tasks...</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Transaction History Section -->
-                <div class="transactions-section" id="transactions-section" style="display: none;">
-                    <div class="section-header">
-                        <h2>Transaction History</h2>
-                        <div class="header-buttons">
-                            <button class="clear-tx-btn" onclick="clearTransactionHistory()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M3 6H5H21M8 6V4C8 3.44872 8.44872 3 9 3H15C15.5513 3 16 3.44872 16 4V6M19 6V20C19 20.5523 18.5523 21 18 21H6C5.44772 21 5 20.5523 5 20V6M10 11V17M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Clear History
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="transactions-container" class="transactions-container">
-                        <div class="empty-state">
-                            <h3>No transactions yet</h3>
-                            <p>Your transaction history will appear here</p>
                         </div>
                     </div>
                 </div>
