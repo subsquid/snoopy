@@ -114,6 +114,7 @@ class WalletManager {
 
     updateUI() {
         const connectBtn = document.getElementById('wallet-connect-btn');
+        const submitTaskBtn = document.getElementById('submit-task-btn');
 
         if (this.isConnected && this.account) {
             const shortAddress = this.account.slice(0, 6) + '...' + this.account.slice(-4);
@@ -121,6 +122,11 @@ class WalletManager {
             connectBtn.textContent = shortAddress;
             connectBtn.classList.add('connected');
             connectBtn.onclick = () => this.disconnect();
+            
+            // Show submit task button when wallet is connected
+            if (submitTaskBtn) {
+                submitTaskBtn.style.display = 'flex';
+            }
         } else {
             connectBtn.innerHTML = `
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -132,6 +138,11 @@ class WalletManager {
             `;
             connectBtn.classList.remove('connected');
             connectBtn.onclick = () => this.connect();
+            
+            // Hide submit task button when wallet is disconnected
+            if (submitTaskBtn) {
+                submitTaskBtn.style.display = 'none';
+            }
         }
     }
 
@@ -590,9 +601,8 @@ class TaskMonitor {
                         <tr>
                             <th>#</th>
                             <th>Query ID</th>
-                            <th>Status</th>
                             <th>Timestamp</th>
-                            <th>Actions</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -608,22 +618,11 @@ class TaskMonitor {
         const statusClass = task.status.toLowerCase().replace('_', '-');
         
         return `
-            <tr>
+            <tr onclick="taskMonitor.showTaskDetails('${task.id}')" style="cursor: pointer;">
                 <td><span class="row-number">${rowNum}</span></td>
                 <td class="mono">${this.escapeHtml(task.query_id)}</td>
-                <td><span class="status-badge ${statusClass}">${this.formatStatus(task.status)}</span></td>
                 <td class="text-muted">${timestamp}</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="table-action-btn" onclick="taskMonitor.showTaskDetails('${task.id}')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" stroke-width="2"/>
-                                <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/>
-                            </svg>
-                            View
-                        </button>
-                    </div>
-                </td>
+                <td><span class="status-badge ${statusClass}">${this.formatStatus(task.status)}</span></td>
             </tr>
         `;
     }
