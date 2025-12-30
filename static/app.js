@@ -269,7 +269,7 @@ class WalletManager {
             const logs = result.result || [];
             console.log('Found', logs.length, 'total logs');
             
-            // For each log, get the full transaction to check the from address
+            // For each log, get the full transaction and check if it's TO the manager contract
             const ourTransactions = [];
             
             for (const log of logs) {
@@ -289,12 +289,14 @@ class WalletManager {
                     });
 
                     const txResult = await txResponse.json();
-                    if (txResult.result && txResult.result.from) {
-                        const txFrom = txResult.result.from.toLowerCase();
+                    if (txResult.result && txResult.result.to) {
+                        const txTo = txResult.result.to.toLowerCase();
+                        const managerAddress = metadata.manager_address.toLowerCase();
+                        const txFrom = txResult.result.from ? txResult.result.from.toLowerCase() : '';
                         const ourAccount = this.account.toLowerCase();
                         
-                        // Check if this transaction is from our wallet
-                        if (txFrom === ourAccount) {
+                        // Check if this transaction is TO the manager contract AND from our wallet
+                        if (txTo === managerAddress && txFrom === ourAccount) {
                             ourTransactions.push({
                                 hash: log.transactionHash,
                                 from: txResult.result.from,
@@ -311,7 +313,7 @@ class WalletManager {
                 }
             }
 
-            console.log('Found', ourTransactions.length, 'transactions from our wallet');
+            console.log('Found', ourTransactions.length, 'transactions from our wallet to manager contract');
 
             // Add to transaction history (avoid duplicates)
             for (const tx of ourTransactions) {
