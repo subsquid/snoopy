@@ -1683,6 +1683,38 @@ function loadFraudData() {
 
 
 
+// Tab switching functionality
+function switchTab(tabName) {
+    // Hide all tab panes
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    tabPanes.forEach(pane => {
+        pane.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach(button => {
+        button.classList.remove('active');
+    });
+    
+    // Show selected tab pane
+    const selectedPane = document.getElementById(tabName + '-tab');
+    if (selectedPane) {
+        selectedPane.classList.add('active');
+    }
+    
+    // Add active class to selected tab button
+    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
+    if (selectedButton) {
+        selectedButton.classList.add('active');
+    }
+    
+    // Load fraud data when fraud events tab is opened
+    if (tabName === 'fraud-events' && window.taskMonitor) {
+        window.taskMonitor.loadFraudData();
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     window.taskMonitor = new TaskMonitor();

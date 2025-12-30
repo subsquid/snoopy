@@ -48,83 +48,110 @@
 
         <main class="main">
             <div class="container">
-                <!-- Transaction History Section -->
-                <div class="transactions-section" id="transactions-section" style="display: none;">
-                    <div class="section-header">
-                        <h2>My Transactions</h2>
-                        <div class="header-buttons">
-                            <button class="eth-events-btn" onclick="openEthEventsModal()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Eth Events
-                            </button>
-                            <button class="refresh-btn" onclick="refreshTransactions()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="transactions-container" class="transactions-container">
-                        <div class="empty-state">
-                            <h3>No transactions yet</h3>
-                            <p>Your transaction history will appear here</p>
-                        </div>
-                    </div>
+                <!-- Tab Navigation -->
+                <div class="tab-navigation">
+                    <button class="tab-button active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M9 22V12H15V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Dashboard
+                    </button>
+                    <button class="tab-button" data-tab="fraud-events" onclick="switchTab('fraud-events')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Fraud Events
+                    </button>
                 </div>
 
-                <div class="tasks-section">
-                    <div class="section-header">
-                        <h2>Active Tasks</h2>
-                        <div class="header-buttons">
-                            <button class="submit-task-btn" onclick="openSubmitTaskModal()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Submit Task
-                            </button>
+                <!-- Tab Content -->
+                <div class="tab-content">
+                    <!-- Dashboard Tab -->
+                    <div id="dashboard-tab" class="tab-pane active">
+                        <!-- Transaction History Section -->
+                        <div class="transactions-section" id="transactions-section" style="display: none;">
+                            <div class="section-header">
+                                <h2>My Transactions</h2>
+                                <div class="header-buttons">
+                                    <button class="refresh-btn" onclick="refreshTransactions()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="transactions-container" class="transactions-container">
+                                <div class="empty-state">
+                                    <h3>No transactions yet</h3>
+                                    <p>Your transaction history will appear here</p>
+                                </div>
+                            </div>
+                        </div>
 
-                            <button class="refresh-btn" onclick="refreshTasks()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Refresh
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="tasks-container" class="tasks-container">
-                        <div class="loading-state">
-                            <div class="subsquid-loader"></div>
-                            <p>Loading tasks...</p>
-                        </div>
-                    </div>
-                </div>
+                        <div class="tasks-section">
+                            <div class="section-header">
+                                <h2>Active Tasks</h2>
+                                <div class="header-buttons">
+                                    <button class="submit-task-btn" onclick="openSubmitTaskModal()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Submit Task
+                                    </button>
 
-                <!-- Fraud Data Section -->
-                <div class="fraud-data-section">
-                    <div class="section-header">
-                        <h2>Fraud Events</h2>
-                        <div class="header-buttons">
-                            <button class="refresh-btn" onclick="loadFraudData()">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                    <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                </svg>
-                                Refresh
-                            </button>
+                                    <button class="refresh-btn" onclick="refreshTasks()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="tasks-container" class="tasks-container">
+                                <div class="loading-state">
+                                    <div class="subsquid-loader"></div>
+                                    <p>Loading tasks...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    
-                    <div id="fraud-data-container" class="fraud-data-container">
-                        <div class="loading-state">
-                            <div class="subsquid-loader"></div>
-                            <p>Loading fraud data...</p>
+
+                    <!-- Fraud Events Tab -->
+                    <div id="fraud-events-tab" class="tab-pane">
+                        <!-- Fraud Data Section -->
+                        <div class="fraud-data-section">
+                            <div class="section-header">
+                                <h2>Fraud Events</h2>
+                                <div class="header-buttons">
+                                    <button class="eth-events-btn" onclick="openEthEventsModal()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Eth Events
+                                    </button>
+                                    <button class="refresh-btn" onclick="loadFraudData()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="fraud-data-container" class="fraud-data-container">
+                                <div class="loading-state">
+                                    <div class="subsquid-loader"></div>
+                                    <p>Loading fraud data...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
