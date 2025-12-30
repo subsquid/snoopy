@@ -1349,7 +1349,7 @@ class TaskMonitor {
                         console.warn('Failed to decode FraudFound event data:', error);
                     }
                 }
-                return { peerId, timestamp: timestamp !== 'Unknown' ? new Date(timestamp * 1000).toLocaleString() : timestamp };
+                return { peerId, timestamp: timestamp !== 'Unknown' ? new Date(timestamp).toLocaleString() : timestamp };
                 
             case 'RoleAdminChanged':
                 // RoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole)
