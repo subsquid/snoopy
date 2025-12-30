@@ -1126,9 +1126,9 @@ class TaskMonitor {
             `;
 
             // Check if RPC URL is WebSocket and inform user
-            if (this.metadata.rpc_url.startsWith('wss://')) {
-                this.showToast('Converting WebSocket RPC to HTTP for browser compatibility', false);
-            }
+            // if (this.metadata.rpc_url.startsWith('wss://')) {
+            //     this.showToast('Converting WebSocket RPC to HTTP for browser compatibility', false);
+            // }
 
             // Query events using eth_call to get past logs
             const events = await this.queryContractEvents(
@@ -1419,9 +1419,9 @@ class TaskMonitor {
                 <table class="sqd-table">
                     <thead>
                         <tr>
-                            <th>Peer ID</th>
                             <th>Block</th>
                             <th>Transaction</th>
+                            <th>Peer ID</th>
                             <th>Timestamp</th>
                         </tr>
                     </thead>
@@ -1437,11 +1437,28 @@ class TaskMonitor {
         const peerId = event.data.peerId || 'Unknown';
         const fraudTime = event.data.timestamp || 'Unknown';
         
+        // Get blockchain explorer URL based on network
+        const getExplorerUrl = (txHash) => {
+            const metadata = this.metadata;
+            if (!metadata) return '#';
+            
+            const network = metadata.blockchain_network.toLowerCase();
+            if (network === 'mainnet') {
+                return `https://etherscan.io/tx/${txHash}`;
+            } else {
+                return `https://${network}.etherscan.io/tx/${txHash}`;
+            }
+        };
+        
         return `
             <tr class="event-card fraudfound">
+                <td>${event.blockNumber}</td>
+                <td>
+                    <a href="${getExplorerUrl(event.transactionHash)}" target="_blank" class="mono-sm" title="View on blockchain explorer">
+                        ${event.transactionHash.slice(0, 14)}...${event.transactionHash.slice(-8)}
+                    </a>
+                </td>
                 <td class="mono">${this.escapeHtml(peerId)}</td>
-                <td>#${event.blockNumber.toLocaleString()}</td>
-                <td class="mono-sm">${event.transactionHash.slice(0, 14)}...${event.transactionHash.slice(-8)}</td>
                 <td class="text-muted">${fraudTime}</td>
             </tr>
         `;

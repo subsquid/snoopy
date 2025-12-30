@@ -1114,7 +1114,7 @@ body, html {
 
 /* Event type specific colors */
 .event-card.fraudfound {
-    border-left: 3px solid #ef4444;
+    border-left: 3px solid #10b981;
 }
 
 .event-card.fraudfound .event-type {
@@ -1188,7 +1188,7 @@ body, html {
 }
 
 .sqd-table .event-card.fraudfound td:first-child {
-    border-left-color: #ef4444;
+    border-left-color: #10b981;
 }
 
 .sqd-table .event-card.roleadminchanged td:first-child {
