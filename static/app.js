@@ -1559,7 +1559,7 @@ class TaskMonitor {
                 throw new Error(`GraphQL error: ${result.errors[0].message}`);
             }
 
-            this.fraudData = result.data.contractEventFraudFounds || [];
+            this.fraudData = (result.data.contractEventFraudFounds || []).sort((a, b) => (b.blockNumber || 0) - (a.blockNumber || 0));
             this.renderFraudData();
         } catch (error) {
             console.error('Failed to load fraud data:', error);
