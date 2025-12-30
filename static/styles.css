@@ -189,6 +189,11 @@ body, html {
         width: 14px;
         height: 14px;
     }
+    
+    /* Hide transactions tab on mobile when wallet not connected */
+    .tab-button[style*="display: none"] {
+        display: none !important;
+    }
 }
 
 /* Main content */

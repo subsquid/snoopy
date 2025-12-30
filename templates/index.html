@@ -57,6 +57,13 @@
                         </svg>
                         Dashboard
                     </button>
+                    <button class="tab-button" data-tab="my-transactions" onclick="switchTab('my-transactions')" id="transactions-tab-btn" style="display: none;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                            <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        My Transactions
+                    </button>
                     <button class="tab-button" data-tab="fraud-events" onclick="switchTab('fraud-events')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
@@ -70,29 +77,6 @@
                 <div class="tab-content">
                     <!-- Dashboard Tab -->
                     <div id="dashboard-tab" class="tab-pane active">
-                        <!-- Transaction History Section -->
-                        <div class="transactions-section" id="transactions-section" style="display: none;">
-                            <div class="section-header">
-                                <h2>My Transactions</h2>
-                                <div class="header-buttons">
-                                    <button class="refresh-btn" onclick="refreshTransactions()">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                            <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                        Refresh
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div id="transactions-container" class="transactions-container">
-                                <div class="empty-state">
-                                    <h3>No transactions yet</h3>
-                                    <p>Your transaction history will appear here</p>
-                                </div>
-                            </div>
-                        </div>
-
                         <div class="tasks-section">
                             <div class="section-header">
                                 <h2>Active Tasks</h2>
@@ -150,6 +134,31 @@
                                 <div class="loading-state">
                                     <div class="subsquid-loader"></div>
                                     <p>Loading fraud data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- My Transactions Tab -->
+                    <div id="my-transactions-tab" class="tab-pane">
+                        <div class="transactions-section" id="transactions-section">
+                            <div class="section-header">
+                                <h2>My Transactions</h2>
+                                <div class="header-buttons">
+                                    <button class="refresh-btn" onclick="refreshTransactions()">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div id="transactions-container" class="transactions-container">
+                                <div class="empty-state">
+                                    <h3>No transactions yet</h3>
+                                    <p>Your transaction history will appear here</p>
                                 </div>
                             </div>
                         </div>

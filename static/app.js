@@ -156,15 +156,33 @@ class WalletManager {
     // Transaction tracking methods
     showTransactionsSection() {
         const section = document.getElementById('transactions-section');
+        const tabBtn = document.getElementById('transactions-tab-btn');
+        
         if (section) {
             section.style.display = 'block';
+        }
+        
+        if (tabBtn) {
+            tabBtn.style.display = 'flex';
         }
     }
 
     hideTransactionsSection() {
         const section = document.getElementById('transactions-section');
+        const tabBtn = document.getElementById('transactions-tab-btn');
+        
         if (section) {
             section.style.display = 'none';
+        }
+        
+        if (tabBtn) {
+            tabBtn.style.display = 'none';
+        }
+        
+        // If we're currently on the transactions tab, switch to dashboard
+        const currentTab = document.querySelector('.tab-pane.active');
+        if (currentTab && currentTab.id === 'my-transactions-tab') {
+            switchTab('dashboard');
         }
     }
 
@@ -390,24 +408,21 @@ class WalletManager {
                 <table class="sqd-table">
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Transaction Hash</th>
-                            <th>Status</th>
-                            <th>From</th>
-                            <th>To</th>
                             <th>Block</th>
                             <th>Timestamp</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${this.transactionHistory.map(tx => this.createTransactionRow(tx)).join('')}
+                        ${this.transactionHistory.map((tx, index) => this.createTransactionRow(tx, index + 1)).join('')}
                     </tbody>
                 </table>
             </div>
         `;
     }
 
-    createTransactionRow(tx) {
-        const shortHash = tx.hash.slice(0, 14) + '...' + tx.hash.slice(-10);
+    createTransactionRow(tx, rowNumber) {
         const statusClass = tx.status;
         const timestamp = tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Pending...';
         
@@ -426,15 +441,13 @@ class WalletManager {
         
         return `
             <tr>
+                <td><span class="row-number">${rowNumber}</span></td>
                 <td>
                     <a href="${getExplorerUrl(tx.hash)}" target="_blank" class="mono" title="View on blockchain explorer">
-                        ${shortHash}
+                        ${tx.hash}
                     </a>
                 </td>
-                <td><span class="status-badge ${statusClass}">${tx.status}</span></td>
-                <td class="mono">${tx.from.slice(0, 6)}...${tx.from.slice(-4)}</td>
-                <td class="mono">${tx.to.slice(0, 6)}...${tx.to.slice(-4)}</td>
-                <td>${tx.blockNumber ? '#' + tx.blockNumber.toLocaleString() : '-'}</td>
+                <td>${tx.blockNumber ? tx.blockNumber : '-'}</td>
                 <td class="text-muted">${timestamp}</td>
             </tr>
         `;
@@ -1685,6 +1698,12 @@ function loadFraudData() {
 
 // Tab switching functionality
 function switchTab(tabName) {
+    // Check if trying to access transactions tab without wallet connection
+    if (tabName === 'my-transactions' && window.taskMonitor && !window.taskMonitor.walletManager.isConnected) {
+        window.taskMonitor.walletManager.showToast('Please connect your wallet to view transactions', true);
+        return;
+    }
+    
     // Hide all tab panes
     const tabPanes = document.querySelectorAll('.tab-pane');
     tabPanes.forEach(pane => {
