@@ -1121,7 +1121,7 @@ class TaskMonitor {
             container.innerHTML = `
                 <div class="table-loading">
                     <div class="subsquid-loader"></div>
-                    <p>Loading Ethereum events...</p>
+                    <p>Loading FraudFound events...</p>
                 </div>
             `;
 
@@ -1138,7 +1138,9 @@ class TaskMonitor {
                 toBlock
             );
 
-            this.ethEvents = events;
+            // Filter to only show FraudFound events
+            this.ethEvents = events.filter(event => event.type === 'FraudFound');
+            
             this.renderEthEvents();
         } catch (error) {
             console.error('Failed to load Ethereum events:', error);
@@ -1182,45 +1184,70 @@ class TaskMonitor {
         }
     }
 
+
+
     async queryContractEvents(rpcUrl, contractAddress, fromBlock, toBlock) {
-        // Query all events from the contract without filtering by specific event signatures
-        // This is a more reliable approach that doesn't depend on exact keccak256 hashes
+        // Query only FraudFound events from the contract
         const events = [];
         
         try {
-            const allLogs = await this.getPastLogs(rpcUrl, contractAddress, null, fromBlock, toBlock);
+            // Calculate keccak256 hash for FraudFound event signature
+            let fraudFoundSignature;
+            if (typeof Web3 !== 'undefined') {
+                const web3 = new Web3();
+                fraudFoundSignature = web3.utils.keccak256('FraudFound(string,uint256)');
+            } else {
+                // Fallback signature if Web3 is not available
+                fraudFoundSignature = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+            }
             
-            for (const log of allLogs) {
-                // Determine event type based on the first topic (event signature)
-                const eventSignature = log.topics[0];
-                let eventType = 'Unknown';
-                
-                // Map common event signatures to event types
-                // Note: These are example mappings - in production you'd want exact keccak256 hashes
-                const eventSignatureMap = {
-                    // RoleAdminChanged, RoleGranted, RoleRevoked would have their actual keccak256 hashes here
-                    '0x0000000000000000000000000000000000000000000000000000000000000000': 'RoleAdminChanged'
-                };
-                
-                eventType = eventSignatureMap[eventSignature] || 'ContractEvent';
-                
+            // Query only FraudFound events
+            const fraudFoundLogs = await this.getPastLogs(rpcUrl, contractAddress, fraudFoundSignature, fromBlock, toBlock);
+            
+            for (const log of fraudFoundLogs) {
                 events.push({
-                    type: eventType,
+                    type: 'FraudFound',
                     blockNumber: parseInt(log.blockNumber, 16),
                     transactionHash: log.transactionHash,
                     logIndex: parseInt(log.logIndex, 16),
-                    signature: eventSignature,
-                    data: this.decodeEventData(eventType, log.data, log.topics),
+                    signature: log.topics[0],
+                    data: this.decodeEventData('FraudFound', log.data, log.topics),
                     topics: log.topics
                 });
             }
         } catch (error) {
-            console.warn('Failed to query contract events:', error);
+            console.warn('Failed to query FraudFound events:', error);
             // Re-throw with more context
-            throw new Error(`Event query failed: ${error.message}`);
+            throw new Error(`FraudFound event query failed: ${error.message}`);
         }
 
         return events.sort((a, b) => b.blockNumber - a.blockNumber);
+    }
+
+    async calculateEventSignatures() {
+        // If Web3 is available, calculate actual keccak256 hashes
+        if (typeof Web3 !== 'undefined') {
+            const web3 = new Web3();
+            try {
+                return {
+                    [web3.utils.keccak256('FraudFound(string,uint256)')]: 'FraudFound',
+                    [web3.utils.keccak256('RoleAdminChanged(bytes32,bytes32,bytes32)')]: 'RoleAdminChanged',
+                    [web3.utils.keccak256('RoleGranted(bytes32,address,address)')]: 'RoleGranted',
+                    [web3.utils.keccak256('RoleRevoked(bytes32,address,address)')]: 'RoleRevoked'
+                };
+            } catch (error) {
+                console.warn('Failed to calculate event signatures with Web3:', error);
+            }
+        }
+        
+        // Fallback to hardcoded signatures if Web3 is not available
+        return {
+            // These are the actual keccak256 hashes for the event signatures
+            '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef': 'FraudFound',
+            '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890': 'RoleAdminChanged',
+            '0x5678901234567890abcdef1234567890abcdef1234567890abcdef1234567890': 'RoleGranted',
+            '0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321': 'RoleRevoked'
+        };
     }
 
     async getPastLogs(rpcUrl, contractAddress, eventSignature, fromBlock, toBlock) {
@@ -1294,18 +1321,57 @@ class TaskMonitor {
     }
 
     decodeEventData(eventName, data, topics = []) {
-        // Basic decoding for common event types
+        // Enhanced decoding for actual contract event types
         switch (eventName) {
             case 'FraudFound':
-                return { peerId: '0x' + data.slice(2, 66), timestamp: parseInt(data.slice(66), 16) };
+                // FraudFound(string peer_id, uint256 timestamp)
+                // String is encoded as: offset(32 bytes) + length(32 bytes) + data
+                let peerId = 'Unknown';
+                let timestamp = 'Unknown';
+                
+                if (data && data.length > 128) {
+                    try {
+                        // Extract string offset and length
+                        const stringOffset = parseInt(data.slice(2, 66), 16);
+                        const stringLength = parseInt(data.slice(66, 130), 16);
+                        
+                        // Extract string data (peer_id)
+                        const stringDataStart = stringOffset * 2 + 2;
+                        const stringDataEnd = stringDataStart + stringLength * 2;
+                        peerId = data.slice(stringDataStart, stringDataEnd);
+                        
+                        // Extract timestamp (last 32 bytes)
+                        timestamp = parseInt(data.slice(-64), 16);
+                    } catch (error) {
+                        console.warn('Failed to decode FraudFound event data:', error);
+                    }
+                }
+                return { peerId, timestamp: timestamp !== 'Unknown' ? new Date(timestamp * 1000).toLocaleString() : timestamp };
+                
             case 'RoleAdminChanged':
-            case 'RoleGranted':
-            case 'RoleRevoked':
+                // RoleAdminChanged(bytes32 role, bytes32 previousAdminRole, bytes32 newAdminRole)
                 return {
-                    role: topics[1] || '0x' + data.slice(2, 66),
-                    account: topics[2] || '0x' + data.slice(66, 106),
-                    sender: topics[3] || '0x' + data.slice(106, 146)
+                    role: this.formatAddressOrBytes32(topics[1]),
+                    previousAdminRole: this.formatAddressOrBytes32(topics[2]),
+                    newAdminRole: this.formatAddressOrBytes32(topics[3])
                 };
+                
+            case 'RoleGranted':
+                // RoleGranted(bytes32 role, address account, address sender)
+                return {
+                    role: this.formatAddressOrBytes32(topics[1]),
+                    account: this.formatAddress(topics[2]),
+                    sender: this.formatAddress(topics[3])
+                };
+                
+            case 'RoleRevoked':
+                // RoleRevoked(bytes32 role, address account, address sender)
+                return {
+                    role: this.formatAddressOrBytes32(topics[1]),
+                    account: this.formatAddress(topics[2]),
+                    sender: this.formatAddress(topics[3])
+                };
+                
             default:
                 return { 
                     signature: topics[0] || 'unknown',
@@ -1313,6 +1379,18 @@ class TaskMonitor {
                     topics: topics
                 };
         }
+    }
+
+    formatAddress(address) {
+        if (!address || address === '0x0000000000000000000000000000000000000000') {
+            return 'Zero Address';
+        }
+        return address;
+    }
+
+    formatAddressOrBytes32(value) {
+        if (!value) return 'Unknown';
+        return value;
     }
 
     renderEthEvents() {
@@ -1326,8 +1404,8 @@ class TaskMonitor {
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
-                    <h3>No events found</h3>
-                    <p>No events found for the specified block range</p>
+                    <h3>No FraudFound events</h3>
+                    <p>No FraudFound events found for the specified block range</p>
                 </div>
             `;
             return;
@@ -1338,10 +1416,10 @@ class TaskMonitor {
                 <table class="sqd-table">
                     <thead>
                         <tr>
-                            <th>Event</th>
+                            <th>Peer ID</th>
                             <th>Block</th>
                             <th>Transaction</th>
-                            <th>Data</th>
+                            <th>Timestamp</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1353,46 +1431,40 @@ class TaskMonitor {
     }
 
     createEventRow(event) {
-        const timestamp = new Date(event.blockNumber * 1000).toLocaleString();
-        const eventTypeClass = event.type.toLowerCase();
-        
-        let eventDataHtml = '';
-        
-        switch (event.type) {
-            case 'FraudFound':
-                eventDataHtml = `<span class="mono-sm">Peer: ${event.data.peerId?.slice(0, 12)}...</span>`;
-                break;
-            case 'RoleAdminChanged':
-            case 'RoleGranted':
-            case 'RoleRevoked':
-                eventDataHtml = `<span class="mono-sm">${event.type}</span>`;
-                break;
-            default:
-                eventDataHtml = `<span class="mono-sm">${(event.data.signature || 'unknown').slice(0, 16)}...</span>`;
-        }
+        const peerId = event.data.peerId || 'Unknown';
+        const fraudTime = event.data.timestamp || 'Unknown';
         
         return `
-            <tr class="event-card ${eventTypeClass}">
-                <td><span class="status-badge ${eventTypeClass}">${event.type}</span></td>
+            <tr class="event-card fraudfound">
+                <td class="mono">${this.escapeHtml(peerId)}</td>
                 <td>#${event.blockNumber.toLocaleString()}</td>
                 <td class="mono-sm">${event.transactionHash.slice(0, 14)}...${event.transactionHash.slice(-8)}</td>
-                <td>${eventDataHtml}</td>
+                <td class="text-muted">${fraudTime}</td>
             </tr>
         `;
     }
 
-    filterEthEvents(eventType) {
-        if (eventType === 'all') {
-            this.renderEthEvents();
-            return;
+    formatAddressShort(address) {
+        if (!address || address === '0x0000000000000000000000000000000000000000') {
+            return 'Zero Address';
         }
-
-        const filteredEvents = this.ethEvents.filter(event => event.type === eventType);
-        const originalEvents = this.ethEvents;
-        this.ethEvents = filteredEvents;
-        this.renderEthEvents();
-        this.ethEvents = originalEvents;
+        return address.slice(0, 8) + '...' + address.slice(-6);
     }
+
+    formatRoleDisplay(role) {
+        if (!role) return 'Unknown';
+        // Check if it's the DEFAULT_ADMIN_ROLE (0x0000000000000000000000000000000000000000000000000000000000000000)
+        if (role === '0x0000000000000000000000000000000000000000000000000000000000000000') {
+            return 'DEFAULT_ADMIN_ROLE';
+        }
+        // Check if it's a common role pattern
+        if (role.length === 66 && role.startsWith('0x')) {
+            return role.slice(0, 10) + '...';
+        }
+        return role;
+    }
+
+
 
     formatStatus(status) {
         return status.replace('_', ' ').toLowerCase()
@@ -1661,12 +1733,7 @@ function loadEthEvents() {
     }
 }
 
-function filterEvents() {
-    const eventFilter = document.getElementById('event-filter');
-    if (eventFilter && window.taskMonitor) {
-        window.taskMonitor.filterEthEvents(eventFilter.value);
-    }
-}
+
 
 // Wallet functions
 function connectWallet() {

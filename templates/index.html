@@ -110,7 +110,7 @@
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                         </svg>
-                                        Eth Events
+                                        FraudFound Events
                                     </button>
                                     <button class="refresh-btn" onclick="loadFraudData()">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -192,7 +192,7 @@
     <div id="eth-events-modal" class="modal-overlay">
         <div class="modal-content eth-events-modal">
             <div class="modal-header">
-                <h3>Ethereum Events</h3>
+                <h3>FraudFound Events</h3>
                 <button class="modal-close-btn" onclick="closeEthEventsModal()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -202,38 +202,25 @@
             <div class="modal-body">
                 <div class="events-controls">
                     <div class="form-group">
-                        <label for="event-filter">Filter by Event Type</label>
-                        <select id="event-filter" onchange="filterEvents()">
-                            <option value="all">All Events</option>
-                            <option value="FraudFound">FraudFound</option>
-                            <option value="RoleAdminChanged">RoleAdminChanged</option>
-                            <option value="RoleGranted">RoleGranted</option>
-                            <option value="RoleRevoked">RoleRevoked</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
                         <label for="block-range">Block Range</label>
                         <div class="block-range-inputs">
                             <input type="number" id="from-block" placeholder="From Block" min="0" value="0">
                             <span>to</span>
                             <input type="text" id="to-block" placeholder="To Block (e.g., 2000000 or 'latest')" value="latest">
                         </div>
-                        <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">
-                            Enter decimal numbers (e.g., 1000000) - they'll be converted to hex automatically. Use "latest" for all recent blocks.
-                        </small>
                     </div>
                     <button class="load-events-btn" onclick="loadEthEvents()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M4 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        Load Events
+                        Load FraudFound Events
                     </button>
                 </div>
                 <div id="events-container" class="events-container">
                     <div class="loading-state">
                         <div class="subsquid-loader"></div>
-                        <p>Click "Load Events" to fetch contract events</p>
+                        <p>Click "Load FraudFound Events" to fetch fraud events</p>
                     </div>
                 </div>
             </div>

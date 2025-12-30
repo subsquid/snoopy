@@ -1145,6 +1145,64 @@ body, html {
     color: #dc2626;
 }
 
+/* Enhanced event data styling */
+.event-card .event-data {
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.event-card .event-data strong {
+    font-weight: 600;
+    color: #374151;
+}
+
+.event-card .event-data span {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    background: #f3f4f6;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 11px;
+}
+
+/* Table-specific event styling */
+.sqd-table .event-card {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+
+.sqd-table .event-card:hover {
+    border-color: #e5e7eb;
+    box-shadow: none;
+    background: transparent;
+}
+
+.sqd-table .event-card td {
+    border-bottom: 1px solid rgba(16, 21, 31, 0.06);
+    padding: 10px 12px;
+}
+
+.sqd-table .event-card td:first-child {
+    border-left: 3px solid transparent;
+}
+
+.sqd-table .event-card.fraudfound td:first-child {
+    border-left-color: #ef4444;
+}
+
+.sqd-table .event-card.roleadminchanged td:first-child {
+    border-left-color: #f59e0b;
+}
+
+.sqd-table .event-card.rolegranted td:first-child {
+    border-left-color: #10b981;
+}
+
+.sqd-table .event-card.rolerevoked td:first-child {
+    border-left-color: #ef4444;
+}
+
 .modal-actions {
     display: flex;
     gap: 12px;
