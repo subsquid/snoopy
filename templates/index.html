@@ -105,6 +105,29 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Fraud Data Section -->
+                <div class="fraud-data-section">
+                    <div class="section-header">
+                        <h2>Fraud Events</h2>
+                        <div class="header-buttons">
+                            <button class="refresh-btn" onclick="loadFraudData()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                Refresh
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="fraud-data-container" class="fraud-data-container">
+                        <div class="loading-state">
+                            <div class="subsquid-loader"></div>
+                            <p>Loading fraud data...</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>

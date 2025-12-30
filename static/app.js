@@ -513,6 +513,7 @@ class TaskMonitor {
         this.refreshInterval = null;
         this.metadata = null;
         this.ethEvents = [];
+        this.fraudData = [];
         this.walletManager = new WalletManager();
         this.init();
     }
@@ -520,6 +521,7 @@ class TaskMonitor {
     init() {
         this.bindEvents();
         this.loadTasks();
+        this.loadFraudData(); // Load fraud data on init
         this.startAutoRefresh();
     }
 
@@ -1403,6 +1405,156 @@ class TaskMonitor {
         // Format as 0x... for easy copy-pasting
         return '0x' + hexString;
     }
+
+    async loadFraudData() {
+        try {
+            const graphqlEndpoint = 'https://fa7e5d08-286a-4511-9598-d4aa8ea9594b.squids.live/zk-feed@v1/api/graphql';
+            
+            const query = `
+                query {
+                    contractEventFraudFounds(limit: 100) {
+                        blockNumber
+                        peerId
+                        timestamp
+                    }
+                }
+            `;
+
+            const response = await fetch(graphqlEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: query
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            
+            if (result.errors) {
+                throw new Error(`GraphQL error: ${result.errors[0].message}`);
+            }
+
+            this.fraudData = result.data.contractEventFraudFounds || [];
+            this.renderFraudData();
+        } catch (error) {
+            console.error('Failed to load fraud data:', error);
+            this.showToast('Failed to load fraud data', true);
+            this.renderFraudDataError(error.message);
+        }
+    }
+
+    renderFraudData() {
+        const container = document.getElementById('fraud-data-container');
+        
+        if (!container) return;
+
+        if (this.fraudData.length === 0) {
+            container.innerHTML = `
+                <div class="table-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                        <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <h3>No fraud events found</h3>
+                    <p>No fraud events data available from GraphQL endpoint</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="table-wrapper">
+                <table class="sqd-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Block Number</th>
+                            <th>Peer ID</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.fraudData.map((item, index) => this.createFraudDataRow(item, index + 1)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    renderFraudDataError(errorMessage) {
+        const container = document.getElementById('fraud-data-container');
+        
+        if (!container) return;
+
+        container.innerHTML = `
+            <div class="error-state">
+                <h3 style="color: #dc2626; margin-bottom: 8px;">Failed to Load Fraud Data</h3>
+                <p style="color: #374151; margin-bottom: 12px;">${errorMessage}</p>
+                <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px; margin-top: 12px;">
+                    <strong style="color: #991b1b; font-size: 13px;">Possible Issues:</strong>
+                    <ul style="margin: 8px 0 0 16px; color: #6b7280; font-size: 12px;">
+                        <li>GraphQL endpoint is unreachable</li>
+                        <li>Network connectivity issues</li>
+                        <li>Query format or syntax error</li>
+                        <li>Server-side issues with the endpoint</li>
+                    </ul>
+                </div>
+                <button class="refresh-btn" onclick="loadFraudData()" style="margin-top: 16px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 4V10H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3.51 15A9 9 0 1 0 6 5L1 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Try Again
+                </button>
+            </div>
+        `;
+    }
+
+    createFraudDataRow(item, rowNum) {
+        // Format timestamp if it's a number (Unix timestamp) or use as-is
+        let formattedTimestamp;
+        if (item.timestamp) {
+            try {
+                // Try to parse as Unix timestamp (seconds or milliseconds)
+                const timestamp = parseInt(item.timestamp);
+                if (timestamp > 1e12) {
+                    // Milliseconds
+                    formattedTimestamp = new Date(timestamp).toLocaleString();
+                } else if (timestamp > 1e9) {
+                    // Seconds
+                    formattedTimestamp = new Date(timestamp * 1000).toLocaleString();
+                } else {
+                    // Already formatted or unknown format
+                    formattedTimestamp = item.timestamp;
+                }
+            } catch {
+                formattedTimestamp = item.timestamp;
+            }
+        } else {
+            formattedTimestamp = 'N/A';
+        }
+
+        // Format block number
+        const blockNumber = item.blockNumber ? item.blockNumber.toString() : 'N/A';
+        
+        // Format peer ID (display full value)
+        let peerId = item.peerId || 'N/A';
+        
+        return `
+            <tr>
+                <td><span class="row-number">${rowNum}</span></td>
+                <td>${blockNumber}</td>
+                <td class="mono">${this.escapeHtml(peerId)}</td>
+                <td class="text-muted">${this.escapeHtml(formattedTimestamp)}</td>
+            </tr>
+        `;
+    }
 }
 
 // Modal management functions
@@ -1520,6 +1672,12 @@ function clearTransactionHistory() {
 function refreshTransactions() {
     if (window.taskMonitor && window.taskMonitor.walletManager) {
         window.taskMonitor.walletManager.refreshTransactions();
+    }
+}
+
+function loadFraudData() {
+    if (window.taskMonitor) {
+        window.taskMonitor.loadFraudData();
     }
 }
 

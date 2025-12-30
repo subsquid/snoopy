@@ -127,6 +127,15 @@ body, html {
     margin-bottom: 48px;
 }
 
+.fraud-data-section {
+    margin-bottom: 48px;
+}
+
+.fraud-data-container {
+    display: grid;
+    gap: 16px;
+}
+
 .refresh-tx-btn {
     display: flex;
     align-items: center;
