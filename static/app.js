@@ -1333,15 +1333,18 @@ class TaskMonitor {
                     try {
                         // Extract string offset and length
                         const stringOffset = parseInt(data.slice(2, 66), 16);
-                        const stringLength = parseInt(data.slice(66, 130), 16);
+                        const timestampWord = data.slice(66, 130);
+                        const stringLengthStart = stringOffset * 2 + 2;
+                        const stringLength = parseInt(data.slice(stringLengthStart, stringLengthStart + 64), 16);
                         
                         // Extract string data (peer_id)
-                        const stringDataStart = stringOffset * 2 + 2;
+                        const stringDataStart = stringLengthStart + 64;
                         const stringDataEnd = stringDataStart + stringLength * 2;
-                        peerId = data.slice(stringDataStart, stringDataEnd);
+                        const peerIdHex = data.slice(stringDataStart, stringDataEnd);
+                        peerId = this.hexToUtf8(peerIdHex);
                         
-                        // Extract timestamp (last 32 bytes)
-                        timestamp = parseInt(data.slice(-64), 16);
+                        // Extract timestamp from the second word in the head
+                        timestamp = parseInt(timestampWord, 16);
                     } catch (error) {
                         console.warn('Failed to decode FraudFound event data:', error);
                     }
@@ -1488,6 +1491,21 @@ class TaskMonitor {
         
         // Format as 0x... for easy copy-pasting
         return '0x' + hexString;
+    }
+
+    hexToUtf8(hexString) {
+        if (!hexString) return '';
+        const cleanHex = hexString.startsWith('0x') ? hexString.slice(2) : hexString;
+        if (cleanHex.length === 0) return '';
+
+        try {
+            const bytes = cleanHex.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+            const decoded = new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(bytes));
+            return decoded.replace(/\u0000+$/g, '');
+        } catch (error) {
+            console.warn('Failed to decode hex to UTF-8:', error);
+            return hexString;
+        }
     }
 
     async loadFraudData() {
