@@ -3,7 +3,7 @@ extern crate rocket;
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 
 use alloy::primitives::Address;
@@ -13,15 +13,15 @@ use eth_trie::{EthTrie, MemoryDB, Trie};
 use rocket::{State, post, serde::json::Json, get, fs::NamedFile};
 use serde::{Deserialize, Serialize};
 use snoopy::{
-    PrivateProofData, build_zk_proof, filter_eligible_queries, get_assignment_id_map,
-    get_siblings_queries, get_signatures, make_mpt_proof, make_proof_data, populate_trie,
+    PrivateProofData, QueryExecutedRow, build_zk_proof, filter_eligible_queries, get_assignment_id_map, get_siblings_queries, get_signatures, make_mpt_proof, make_proof_data, populate_trie
 };
 pub use sqd_messages::query_finished::Result as QueryFinishedResult;
 pub use sqd_messages::signatures;
-use tokio::time::sleep;
+use tokio::time::{Interval, sleep};
 use tracing::{error, info};
 use uuid::Uuid;
 use tikv_jemallocator::Jemalloc;
+use anyhow::anyhow;
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -231,7 +231,230 @@ async fn submit_task(task: Json<TaskDescription>, state: &State<InternalState>) 
     Json(task_id)
 }
 
-fn run_loop(state: &InternalState) {
+#[derive(clickhouse::Row, serde::Deserialize)]
+struct HashRow {
+    hash: String,
+}
+
+async fn get_suspicious_hashes(client: &Client, range_start_sec: u32, range_end_sec: u32) -> Result<Vec<String>, anyhow::Error> {
+    let mut cursor = client.query("select hash from (
+            select
+            hex(query_hash) as hash, 
+            count(distinct(chunk_id, from_block, to_block)) as A,
+            count(distinct(chunk_id, from_block, to_block, output_hash)) as B
+            from mainnet.worker_query_logs where
+            worker_timestamp > ? and
+            worker_timestamp < ? and
+            result == 'ok'
+            group by query_hash
+            ) where A <> B"
+        )
+        .bind(range_start_sec)
+        .bind(range_end_sec)
+        .fetch::<HashRow>()?;
+
+    let mut res = Vec::<String>::default();
+    while let Some(row) = cursor.next().await? { // Should be ?
+        res.push(row.hash);
+    };
+    Ok(res)
+}
+
+#[derive(clickhouse::Row, serde::Deserialize, Debug)]
+struct InvestigationRow {
+    hash: String,
+    dataset: String,
+    chunk_id: String,
+    from_block: Option<u64>,
+    to_block: Option<u64>,
+    workers: u64,
+}
+
+async fn investigate_hash(client: &Client, range_start_sec: u32, range_end_sec: u32, hashes: Vec<String>) -> Result<Vec<InvestigationRow>, anyhow::Error> {
+    client.query("select hash, dataset, chunk_id, from_block, to_block, workers from (
+            select 
+                hex(query_hash) as hash, 
+                dataset, 
+                chunk_id, 
+                from_block, 
+                to_block, 
+                count(distinct(worker_id)) as workers, 
+                count(distinct(output_hash)) as variants
+            from mainnet.worker_query_logs 
+            where 
+                worker_timestamp > ? and
+                worker_timestamp < ? and
+                hex(query_hash) IN ? and
+                result == 'ok'
+            group by query_hash, dataset, chunk_id, from_block, to_block
+            ) where variants > 1"
+        )
+        .bind(range_start_sec)
+        .bind(range_end_sec)
+        .bind(hashes)
+        .fetch_all::<InvestigationRow>().await.map_err(|err| anyhow!("{err:?}"))
+}
+
+#[derive(clickhouse::Row, serde::Deserialize, Debug)]
+struct QueryIdRow {
+    query_id: String,
+}
+
+async fn get_siblings_queries_by_investigate_row(client: &Client, range_start_sec: u32, range_end_sec: u32, row: &InvestigationRow) -> Result<Vec<QueryExecutedRow>, anyhow::Error>  {
+    let sibling_ids = client.query("
+            select 
+                any(query_id)
+            from mainnet.worker_query_logs
+            where 
+                worker_timestamp > ? and 
+                worker_timestamp < ? and 
+                hex(query_hash) = ? and
+                dataset = ? and
+                chunk_id = ? and
+                from_block = ? and 
+                to_block = ? and 
+                result = 'ok'
+            group by worker_id, output_hash"
+        )
+        .bind(range_start_sec)
+        .bind(range_end_sec)
+        .bind(row.hash.clone())
+        .bind(row.dataset.clone())
+        .bind(row.chunk_id.clone())
+        .bind(row.from_block)
+        .bind(row.to_block)
+        .fetch_all::<QueryIdRow>().await?;
+
+    let mut sibling_queries = client.query("
+            select 
+                query_id, 
+                client_id, 
+                worker_id, 
+                dataset_id, 
+                from_block, 
+                to_block, 
+                chunk_id, 
+                query, 
+                query_hash, 
+                result, 
+                output_hash, 
+                last_block, 
+                error_msg, 
+                client_signature, 
+                client_timestamp, 
+                request_id
+            from mainnet.worker_query_logs
+            where 
+                worker_timestamp > ? and 
+                worker_timestamp < ? and
+                query_id in ?"
+        )
+        .bind(range_start_sec)
+        .bind(range_end_sec)
+        .bind(sibling_ids.iter().map(|v| v.query_id.clone()).collect::<Vec<_>>())
+        .fetch_all::<QueryExecutedRow>().await?;
+
+    sibling_queries.sort_by(|a, b| a.query_id.cmp(&b.query_id));
+    sibling_queries.dedup_by(|a, b| a.query_id == b.query_id);
+
+    info!(
+        "After filtering got {:?} unique queries",
+        sibling_queries.len()
+    );
+
+    Ok(sibling_queries)
+}
+
+fn find_odds_in_siblings(siblings: &Vec<QueryExecutedRow>) -> Result<Vec<String>, anyhow::Error> {
+    let mut map = HashMap::<String, Vec<String>>::default();
+    for sibling in siblings {
+        let key = sibling.output_hash.iter().map(|v| format!("{v:02X}")).collect::<Vec<_>>().join("");
+        let value = map.entry(key).or_insert(vec![]);
+        (*value).push(sibling.query_id.clone());
+    }
+    let max_num = map.iter().map(|(_, v)| v.len()).max().ok_or(anyhow!("Empty input for odds finder"))?;
+    let res = map.values().filter(|v| v.len() < max_num).cloned().collect::<Vec<_>>().concat();
+    Ok(res)
+}
+
+fn start_discovery_loop(state: &InternalState) {
+    let local_config = state.config.clone();
+    tokio::spawn(async move {
+        loop {
+            let db_url = local_config.db_url.clone();
+            let db_database = local_config.db_database.clone();
+            let db_user = local_config.db_user.clone();
+            let db_password = local_config.db_password.clone();
+            // let network = local_config.network.clone();
+            let rpc_url = local_config.rpc_url.clone();
+            let commiter_address = local_config.commiter_address;
+
+            let client = Client::default()
+                .with_url(db_url)
+                .with_database(db_database)
+                .with_user(db_user)
+                .with_password(db_password)
+                .with_option("max_execution_time", "240");
+
+            let range_end_sec = std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as u32;// - 24 * 3600 * 75;
+            let range_start_sec = range_end_sec - 24 * 3600 * 5;
+            let start = Instant::now();
+
+            let suspicious_hashes = match get_suspicious_hashes(&client, range_start_sec, range_end_sec).await {
+                Ok(hashes) => hashes,
+                Err(err) => {
+                    error!("Got error while searching for suspicious hashes: {err:?}");
+                    continue;
+                },
+            };
+            info!("Sus: {suspicious_hashes:?}");
+
+            let res = match investigate_hash(&client, range_start_sec, range_end_sec, suspicious_hashes).await {
+                Ok(rows) => rows,
+                Err(err) => {
+                    error!("Got error while investigating suspicious hashes: {err:?}");
+                    continue;
+                },
+            };
+            info!("Investigation found: {res:?}");
+            for row in &res {
+                let siblings = match get_siblings_queries_by_investigate_row(&client, range_start_sec, range_end_sec, row).await {
+                    Ok(siblings) => siblings,
+                    Err(err) => {
+                        error!("Got error while searching for siblings for hash {:?}: {err:?}", row.hash);
+                        continue;
+                    },
+                };
+                info!("Siblings!: {:?}", siblings.len());
+                let odds = match find_odds_in_siblings(&siblings) {
+                    Ok(odds) => odds,
+                    Err(err) => {
+                        error!("Got error while finding oddities: {err:?}");
+                        continue;
+                    },
+                };
+                info!("Odd query id is: {odds:?}");
+                for query_id in odds {
+                    let assignment_id_map =
+                        match get_assignment_id_map(&siblings, &rpc_url, commiter_address).await {
+                            Ok(map) => map,
+                            Err(err) => {
+                                error!("Got {err:?} while quering contract");
+                                continue;
+                            }
+                        };
+                    info!("ASSIGNMENT MAP: {assignment_id_map:?}");
+                    let eligible_queries =
+                        filter_eligible_queries(&siblings, &assignment_id_map, &query_id);
+                    info!("Eligible queries: {eligible_queries:?}");
+                }
+            };
+            info!("Spun in {:?}", start.elapsed());
+        }
+    });
+}
+
+fn start_run_loop(state: &InternalState) {
     let local_tasks = Arc::clone(&state.tasks);
     let local_config = state.config.clone();
     tokio::spawn(async move {
@@ -475,7 +698,8 @@ async fn main() -> Result<(), Box<rocket::Error>> {
         tasks: Arc::new(Mutex::new(HashMap::new())),
         config: args,
     };
-    run_loop(&state);
+    start_discovery_loop(&state);
+    start_run_loop(&state);
     let _ = rocket::build()
         .manage(state)
         .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks, get_metadata])

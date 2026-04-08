@@ -142,10 +142,10 @@ pub struct QueryExecutedRow {
     pub chunk_id: String,
     query: String,
     #[serde(with = "serde_bytes")]
-    query_hash: Vec<u8>,
+    pub query_hash: Vec<u8>,
     result: QueryResult,
     #[serde(with = "serde_bytes")]
-    output_hash: Vec<u8>,
+    pub output_hash: Vec<u8>,
     last_block: Option<u64>,
     error_msg: String,
     #[serde(with = "serde_bytes")]
