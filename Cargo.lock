@@ -7239,6 +7239,7 @@ dependencies = [
  "eth_trie",
  "flate2",
  "libp2p-identity",
+ "rand 0.8.5",
  "reqwest",
  "rlp 0.6.1",
  "rocket",

@@ -5,7 +5,6 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant, UNIX_EPOCH},
 };
-
 use alloy::primitives::Address;
 use clap::Parser;
 use clickhouse::Client;
@@ -77,6 +76,10 @@ struct Args {
 
     #[clap(long, env, default_value = "prove-query-result-program")]
     pub program_path: String,
+
+    /// Skip actual ZK proof creation and generate random proof bytes instead.
+    #[clap(long, env, default_value = "false")]
+    pub fake_proof: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -590,7 +593,15 @@ fn start_discovery_loop(state: &InternalState) {
                         continue;
                     }
 
-                    match build_zk_proof(&proof_data_list, &program_path).await {
+                    let proof_result = if local_config.fake_proof {
+                        info!("fake_proof enabled: generating random proof bytes for query_id {query_id}");
+                        let proof_bytes: Vec<u8> = (0..128).map(|_x: u8| rand::random::<u8>()).collect();
+                        let public_values: Vec<u8> = (0..64).map(|_x: u8| rand::random::<u8>()).collect();
+                        Ok((proof_bytes, public_values))
+                    } else {
+                        build_zk_proof(&proof_data_list, &program_path).await
+                    };
+                    match proof_result {
                         Ok((proof_bytes, public_values)) => {
                             let mut storage = local_proof_storage.lock().unwrap();
                             storage.add_proof(query_id.clone(), proof_bytes, public_values);
@@ -817,16 +828,23 @@ fn start_run_loop(state: &InternalState) {
                 );
             }
 
-            let (proof_bytes, public_values) = match build_zk_proof(&proofs, &program_path).await {
-                Ok(proof) => proof,
-                Err(err) => {
-                    set_task_status(
-                        &local_tasks,
-                        task_id,
-                        TaskStatus::Failed,
-                        Some(format!("Failed to create zk proof: {err}")),
-                    );
-                    continue;
+            let (proof_bytes, public_values) = if local_config.fake_proof {
+                info!("fake_proof enabled: generating random proof bytes for task {task_id}");
+                let proof_bytes: Vec<u8> = (0..128).map(|_x: u8| rand::random::<u8>()).collect();
+                let public_values: Vec<u8> = (0..64).map(|_x: u8| rand::random::<u8>()).collect();
+                (proof_bytes, public_values)
+            } else {
+                match build_zk_proof(&proofs, &program_path).await {
+                    Ok(proof) => proof,
+                    Err(err) => {
+                        set_task_status(
+                            &local_tasks,
+                            task_id,
+                            TaskStatus::Failed,
+                            Some(format!("Failed to create zk proof: {err}")),
+                        );
+                        continue;
+                    }
                 }
             };
 
