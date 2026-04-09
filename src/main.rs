@@ -110,9 +110,65 @@ struct Metadata {
     config_name: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct Proof {
+    proof_bytes: Vec<u8>,
+    public_values: Vec<u8>,
+    is_published: bool,
+}
+
+struct ProofStorage {
+    proofs: HashMap<String, Proof>,
+}
+
+impl ProofStorage {
+    fn new() -> Self {
+        ProofStorage {
+            proofs: HashMap::new(),
+        }
+    }
+
+    /// Store a new proof for the given query_id (overwrites if already present).
+    fn add_proof(&mut self, query_id: String, proof_bytes: Vec<u8>, public_values: Vec<u8>) {
+        self.proofs.insert(
+            query_id,
+            Proof {
+                proof_bytes,
+                public_values,
+                is_published: false,
+            },
+        );
+    }
+
+    /// Returns query_ids of **all** known proofs.
+    fn list_all(&self) -> Vec<String> {
+        self.proofs.keys().cloned().collect()
+    }
+
+    /// Returns query_ids of proofs that have been published.
+    fn list_published(&self) -> Vec<String> {
+        self.proofs
+            .iter()
+            .filter(|(_, p)| p.is_published)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
+    /// Returns `true` if a proof for `query_id` exists.
+    fn exists(&self, query_id: &str) -> bool {
+        self.proofs.contains_key(query_id)
+    }
+
+    /// Returns a clone of the proof for `query_id`, or `None`.
+    fn get(&self, query_id: &str) -> Option<Proof> {
+        self.proofs.get(query_id).cloned()
+    }
+}
+
 // Shared state to store tasks
 struct InternalState {
     tasks: Arc<Mutex<HashMap<Uuid, Task>>>,
+    proof_storage: Arc<Mutex<ProofStorage>>,
     config: Args,
 }
 
@@ -379,6 +435,7 @@ fn find_odds_in_siblings(siblings: &Vec<QueryExecutedRow>) -> Result<Vec<String>
 
 fn start_discovery_loop(state: &InternalState) {
     let local_config = state.config.clone();
+    let local_proof_storage = Arc::clone(&state.proof_storage);
     tokio::spawn(async move {
         loop {
             let db_url = local_config.db_url.clone();
@@ -416,7 +473,6 @@ fn start_discovery_loop(state: &InternalState) {
                     continue;
                 },
             };
-            info!("Investigation found: {res:?}");
             for row in &res {
                 let siblings = match get_siblings_queries_by_investigate_row(&client, range_start_sec, range_end_sec, row).await {
                     Ok(siblings) => siblings,
@@ -443,10 +499,98 @@ fn start_discovery_loop(state: &InternalState) {
                                 continue;
                             }
                         };
-                    info!("ASSIGNMENT MAP: {assignment_id_map:?}");
                     let eligible_queries =
                         filter_eligible_queries(&siblings, &assignment_id_map, &query_id);
-                    info!("Eligible queries: {eligible_queries:?}");
+                    info!("Eligible queries: {:?}", eligible_queries.len());
+                    let signatures =
+                        match get_signatures(&client, range_start_sec, range_end_sec, &eligible_queries, &query_id).await
+                        {
+                            Ok(signatures) => signatures,
+                            Err(err) => {
+                                error!("Got {err:?} while getting signatures");
+                                continue;
+                            }
+                        };
+
+                    if eligible_queries.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF
+                        || signatures.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF
+                    {
+                        error!("Not enough evidence to create fraud proof");
+                        continue;
+                    };
+
+                    // Build ZK proof and store it in global proof storage
+                    let program_path = local_config.program_path.clone();
+                    let mut used_keys: HashSet<String> = Default::default();
+                    let mut proof_data_list: Vec<PrivateProofData> = Default::default();
+                    for proof_row in &eligible_queries {
+                        if proof_data_list.len() >= NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
+                            break;
+                        }
+                        if used_keys.contains(&proof_row.worker_id) {
+                            continue;
+                        }
+                        let (result_hash, worker_signature) = match signatures.get(&proof_row.query_id) {
+                            Some(res) => res,
+                            None => continue,
+                        };
+                        let db = Arc::new(MemoryDB::new(true));
+                        let mut trie = EthTrie::new(db);
+                        let assignment_id = match assignment_id_map.get(&proof_row.query_id) {
+                            Some(v) => v,
+                            None => continue,
+                        };
+                        let network = local_config.network.clone();
+                        let assignment_url = format!(
+                            "https://metadata.sqd-datasets.io/assignments/{network}/{assignment_id}.fb.1.gz"
+                        );
+                        match populate_trie(assignment_url, &mut trie).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("Failed to build MPT for {assignment_id}: {err}");
+                                continue;
+                            }
+                        };
+                        let tree_root = match trie.root_hash() {
+                            Ok(root) => root.to_vec(),
+                            Err(err) => {
+                                error!("Failed to calculate MPT root for {assignment_id}: {err}");
+                                continue;
+                            }
+                        };
+                        let mpt_proof = match make_mpt_proof(&mut trie, &proof_row.dataset_id, &proof_row.chunk_id, &proof_row.worker_id) {
+                            Ok(p) => p,
+                            Err(err) => {
+                                error!("Failed to calculate MPT proof for {proof_row:?}: {err}");
+                                continue;
+                            }
+                        };
+                        let proof = match make_proof_data(proof_row, result_hash, worker_signature, tree_root, mpt_proof) {
+                            Ok(p) => p,
+                            Err(err) => {
+                                error!("Failed to generate proof data for {proof_row:?}: {err}");
+                                continue;
+                            }
+                        };
+                        used_keys.insert(proof_row.worker_id.clone());
+                        proof_data_list.push(proof);
+                    }
+
+                    if proof_data_list.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
+                        error!("Could not assemble enough proof data entries");
+                        continue;
+                    }
+
+                    match build_zk_proof(&proof_data_list, &program_path).await {
+                        Ok((proof_bytes, public_values)) => {
+                            let mut storage = local_proof_storage.lock().unwrap();
+                            storage.add_proof(query_id.clone(), proof_bytes, public_values);
+                            info!("Stored proof for query_id {query_id} in global proof storage");
+                        }
+                        Err(err) => {
+                            error!("Failed to build ZK proof for query_id {query_id}: {err:?}");
+                        }
+                    }
                 }
             };
             info!("Spun in {:?}", start.elapsed());
@@ -456,6 +600,7 @@ fn start_discovery_loop(state: &InternalState) {
 
 fn start_run_loop(state: &InternalState) {
     let local_tasks = Arc::clone(&state.tasks);
+    let local_proof_storage = Arc::clone(&state.proof_storage);
     let local_config = state.config.clone();
     tokio::spawn(async move {
         loop {
@@ -488,11 +633,11 @@ fn start_run_loop(state: &InternalState) {
             let db_user = local_config.db_user.clone();
             let db_password = local_config.db_password.clone();
             let query_id = task.query_id.clone();
-            let ts = task.ts;
+            let ts = task.ts as u32;
             let rpc_url = local_config.rpc_url.clone();
             let commiter_address = local_config.commiter_address;
-            let ts_tolerance = local_config.ts_tolerance;
-            let ts_search_range = local_config.ts_search_range;
+            let ts_tolerance = local_config.ts_tolerance as u32;
+            let ts_search_range = local_config.ts_search_range as u32;
             let network = local_config.network.clone();
             let program_path = local_config.program_path.clone();
 
@@ -548,7 +693,7 @@ fn start_run_loop(state: &InternalState) {
                 filter_eligible_queries(&sibling_queries, &assignment_id_map, &query_id);
 
             let signatures =
-                match get_signatures(&client, ts, ts_search_range, &eligible_queries, &query_id)
+                match get_signatures(&client, ts - ts_search_range, ts + ts_search_range, &eligible_queries, &query_id)
                     .await
                 {
                     Ok(signatures) => signatures,
@@ -675,6 +820,14 @@ fn start_run_loop(state: &InternalState) {
                     continue;
                 }
             };
+
+            // Store proof in global proof storage
+            {
+                let mut storage = local_proof_storage.lock().unwrap();
+                storage.add_proof(query_id.clone(), proof_bytes.clone(), public_values.clone());
+                info!("Stored proof for query_id {query_id} in global proof storage");
+            }
+
             set_task_status_with_proof(
                 &local_tasks,
                 task_id,
@@ -696,6 +849,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     let args = Args::parse();
     let state = InternalState {
         tasks: Arc::new(Mutex::new(HashMap::new())),
+        proof_storage: Arc::new(Mutex::new(ProofStorage::new())),
         config: args,
     };
     start_discovery_loop(&state);

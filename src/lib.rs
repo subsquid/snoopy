@@ -176,9 +176,9 @@ pub struct PrivateProofData {
 pub async fn get_siblings_queries(
     client: &Client,
     query_id: &str,
-    ts: u64,
-    ts_tolerance: u64,
-    ts_search_range: u64,
+    ts: u32,
+    ts_tolerance: u32,
+    ts_search_range: u32,
 ) -> Result<Vec<QueryExecutedRow>, anyhow::Error> {
     info!(
         "Params: {} {} {}",
@@ -188,8 +188,8 @@ pub async fn get_siblings_queries(
     );
     let original_query = client
         .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where worker_timestamp > ? AND worker_timestamp < ? AND query_id = ?")
-        .bind((ts - ts_tolerance) as u32)
-        .bind((ts + ts_tolerance) as u32)
+        .bind(ts - ts_tolerance)
+        .bind(ts + ts_tolerance)
         .bind(query_id)
         .fetch_one::<QueryExecutedRow>()
         .await?;
@@ -271,15 +271,15 @@ pub fn filter_eligible_queries(
 
 pub async fn get_signatures(
     client: &Client,
-    ts: u64,
-    ts_search_range: u64,
+    range_start_sec: u32,
+    range_end_sec: u32,
     eligible_queries: &[QueryExecutedRow],
     original_query_id: &str,
 ) -> Result<HashMap<String, (Vec<u8>, Vec<u8>)>, anyhow::Error> {
     let signatures = client
         .query("select query_id, worker_signature, result_hash from portal_logs where collector_timestamp > ? AND collector_timestamp < ? AND query_id IN ?")
-        .bind(ts - ts_search_range)
-        .bind(ts + ts_search_range)
+        .bind(range_start_sec)
+        .bind(range_end_sec)
         .bind(eligible_queries.iter().map(|row| row.query_id.clone()).collect::<Vec<_>>())
         .fetch_all::<SignatureRow>()
         .await?;
