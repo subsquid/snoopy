@@ -175,6 +175,30 @@ struct InternalState {
     config: Args,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ProofEntry {
+    query_id: String,
+    proof_bytes: Vec<u8>,
+    public_values: Vec<u8>,
+    is_published: bool,
+}
+
+#[get("/proofs")]
+async fn get_all_proofs(state: &State<InternalState>) -> Json<Vec<ProofEntry>> {
+    let storage = state.proof_storage.lock().unwrap();
+    let entries = storage
+        .proofs
+        .iter()
+        .map(|(query_id, proof)| ProofEntry {
+            query_id: query_id.clone(),
+            proof_bytes: proof.proof_bytes.clone(),
+            public_values: proof.public_values.clone(),
+            is_published: proof.is_published,
+        })
+        .collect();
+    Json(entries)
+}
+
 #[get("/tasks")]
 async fn get_all_tasks(state: &State<InternalState>) -> Json<Vec<Task>> {
     let tasks_lock = state.tasks.lock().unwrap();
@@ -883,7 +907,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     start_run_loop(&state);
     let _ = rocket::build()
         .manage(state)
-        .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks, get_metadata])
+        .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks, get_metadata, get_all_proofs])
         .launch()
         .await;
     Ok(())

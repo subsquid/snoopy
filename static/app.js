@@ -536,6 +536,7 @@ class WalletManager {
 class TaskMonitor {
     constructor() {
         this.tasks = [];
+        this.proofs = [];
         this.refreshInterval = null;
         this.metadata = null;
         this.ethEvents = [];
@@ -1527,6 +1528,107 @@ class TaskMonitor {
         }
     }
 
+    async loadProofs() {
+        try {
+            const container = document.getElementById('proofs-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="loading-state">
+                        <div class="subsquid-loader"></div>
+                        <p>Loading proofs...</p>
+                    </div>
+                `;
+            }
+
+            const response = await fetch('/proofs');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            this.proofs = await response.json();
+            this.renderProofs();
+        } catch (error) {
+            console.error('Failed to load proofs:', error);
+            this.showToast('Failed to load proofs', true);
+            const container = document.getElementById('proofs-container');
+            if (container) {
+                container.innerHTML = `
+                    <div class="error-state">
+                        <h3 style="color: #dc2626; margin-bottom: 8px;">Failed to Load Proofs</h3>
+                        <p style="color: #374151;">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    renderProofs() {
+        const container = document.getElementById('proofs-container');
+        if (!container) return;
+
+        if (this.proofs.length === 0) {
+            container.innerHTML = `
+                <div class="table-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <h3>No proofs in storage</h3>
+                    <p>Proofs will appear here once they are generated</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="table-wrapper">
+                <table class="sqd-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Query ID</th>
+                            <th>Proof Bytes</th>
+                            <th>Public Values</th>
+                            <th>Published</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${this.proofs.map((proof, index) => this.createProofRow(proof, index + 1)).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    createProofRow(proof, rowNum) {
+        const proofHex = this.formatBytes(proof.proof_bytes);
+        const publicValuesHex = this.formatBytes(proof.public_values);
+        const publishedBadge = proof.is_published
+            ? `<span class="status-badge completed">Yes</span>`
+            : `<span class="status-badge pending">No</span>`;
+
+        return `
+            <tr>
+                <td><span class="row-number">${rowNum}</span></td>
+                <td class="mono">${this.escapeHtml(proof.query_id)}</td>
+                <td>
+                    <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${proofHex}">
+                        ${proofHex.slice(0, 40)}…
+                    </div>
+                    <button onclick="navigator.clipboard.writeText('${proofHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>
+                </td>
+                <td>
+                    <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${publicValuesHex}">
+                        ${publicValuesHex.slice(0, 40)}…
+                    </div>
+                    <button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>
+                </td>
+                <td>${publishedBadge}</td>
+            </tr>
+        `;
+    }
+
     async loadFraudData() {
         try {
             const graphqlEndpoint = 'https://fa7e5d08-286a-4511-9598-d4aa8ea9594b.squids.live/zk-feed@v1/api/graphql';
@@ -1797,6 +1899,12 @@ function loadFraudData() {
     }
 }
 
+function loadProofs() {
+    if (window.taskMonitor) {
+        window.taskMonitor.loadProofs();
+    }
+}
+
 
 
 // Tab switching functionality
@@ -1834,6 +1942,11 @@ function switchTab(tabName) {
     // Load fraud data when fraud events tab is opened
     if (tabName === 'fraud-events' && window.taskMonitor) {
         window.taskMonitor.loadFraudData();
+    }
+
+    // Load proofs when proof storage tab is opened
+    if (tabName === 'proof-storage' && window.taskMonitor) {
+        window.taskMonitor.loadProofs();
     }
 }
 
