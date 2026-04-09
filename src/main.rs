@@ -491,6 +491,15 @@ fn start_discovery_loop(state: &InternalState) {
                 };
                 info!("Odd query id is: {odds:?}");
                 for query_id in odds {
+                    // Skip proof creation if a proof already exists for this query_id
+                    {
+                        let storage = local_proof_storage.lock().unwrap();
+                        if storage.exists(&query_id) {
+                            info!("Proof already exists for query_id {query_id}, skipping proof creation");
+                            continue;
+                        }
+                    }
+
                     let assignment_id_map =
                         match get_assignment_id_map(&siblings, &rpc_url, commiter_address).await {
                             Ok(map) => map,
