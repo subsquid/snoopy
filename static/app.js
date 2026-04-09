@@ -40,10 +40,12 @@ class WalletManager {
             }
         });
 
-        // Handle chain changes
+        // Handle chain changes — update web3 provider without reloading the page
+        // so that in-progress transactions (e.g. postProof) survive a network switch.
         window.ethereum.on('chainChanged', (chainId) => {
-            // Reload page on chain change
-            window.location.reload();
+            if (this.web3) {
+                this.web3 = new Web3(window.ethereum);
+            }
         });
     }
 
@@ -1581,6 +1583,14 @@ class TaskMonitor {
             return;
         }
 
+        // Store proof data in a map keyed by rowId so onclick handlers can access
+        // the binary data without embedding it inside HTML attribute strings.
+        this._proofDataMap = {};
+        for (const proof of this.proofs) {
+            const rowId = proof.query_id.replace(/[^a-zA-Z0-9]/g, '_');
+            this._proofDataMap[rowId] = proof;
+        }
+
         container.innerHTML = `
             <div class="table-wrapper">
                 <table class="sqd-table">
@@ -1591,6 +1601,7 @@ class TaskMonitor {
                             <th>Proof Bytes</th>
                             <th>Public Values</th>
                             <th>Published</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1608,10 +1619,48 @@ class TaskMonitor {
             ? `<span class="status-badge completed">Yes</span>`
             : `<span class="status-badge pending">No</span>`;
 
+        const safeQueryId = this.escapeHtml(proof.query_id);
+        const rowId = proof.query_id.replace(/[^a-zA-Z0-9]/g, '_');
+
+        // The onclick passes only the rowId string — proof bytes are read from
+        // this._proofDataMap[rowId] inside postProofFromStorage to avoid
+        // embedding large byte arrays in HTML attributes.
+        const publishButton = !proof.is_published
+            ? `<div>
+                <button
+                    id="proof-publish-btn-${rowId}"
+                    onclick="window.taskMonitor.postProofFromStorage('${rowId}')"
+                    style="
+                        padding: 6px 12px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        border: none;
+                        border-radius: 6px;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        white-space: nowrap;
+                        transition: all 0.2s ease;
+                    "
+                    onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 3px 8px rgba(102,126,234,0.4)';"
+                    onmouseout="this.style.transform='none';this.style.boxShadow='none';"
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    Publish to Chain
+                </button>
+                <div id="proof-publish-status-${rowId}" style="font-size: 11px; color: #6b7280; margin-top: 4px;"></div>
+               </div>`
+            : `<span style="color: #9ca3af; font-size: 12px;">—</span>`;
+
         return `
             <tr>
                 <td><span class="row-number">${rowNum}</span></td>
-                <td class="mono">${this.escapeHtml(proof.query_id)}</td>
+                <td class="mono">${safeQueryId}</td>
                 <td>
                     <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${proofHex}">
                         ${proofHex.slice(0, 40)}…
@@ -1625,8 +1674,160 @@ class TaskMonitor {
                     <button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>
                 </td>
                 <td>${publishedBadge}</td>
+                <td>${publishButton}</td>
             </tr>
         `;
+    }
+
+    async postProofFromStorage(rowId) {
+        const proof = this._proofDataMap && this._proofDataMap[rowId];
+        if (!proof) {
+            this.showToast('Proof data not found', true);
+            return;
+        }
+        const queryId = proof.query_id;
+        const proofBytes = proof.proof_bytes;
+        const publicValues = proof.public_values;
+
+        const btn = document.getElementById(`proof-publish-btn-${rowId}`);
+        const statusEl = document.getElementById(`proof-publish-status-${rowId}`);
+
+        try {
+            // Load metadata
+            const metadata = await this.loadMetadata();
+
+            if (!this.walletManager.isConnected) {
+                this.walletManager.showToast('Please connect your wallet first', true);
+                return;
+            }
+
+            // Validate network
+            const web3 = this.walletManager.web3;
+            const networkId = await web3.eth.net.getId();
+
+            const networkChainIds = {
+                'mainnet': 1,
+                'sepolia': 11155111,
+                'holesky': 17000,
+                'goerli': 5
+            };
+
+            const expectedChainId = networkChainIds[metadata.blockchain_network.toLowerCase()];
+
+            if (expectedChainId && networkId !== expectedChainId) {
+                try {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x' + expectedChainId.toString(16) }]
+                    });
+                    // After a successful switch the chainChanged event fires and
+                    // walletManager.web3 is refreshed — wait a tick for it to settle.
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                } catch (switchError) {
+                    if (switchError.code === 4902) {
+                        this.walletManager.showToast(`Please add the ${metadata.blockchain_network} network to MetaMask`, true);
+                    } else {
+                        this.walletManager.showToast(`Please switch to ${metadata.blockchain_network} network in MetaMask`, true);
+                    }
+                    if (statusEl) {
+                        statusEl.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
+                        statusEl.style.color = '#f59e0b';
+                    }
+                    return;
+                }
+            }
+
+            // Re-read web3 in case it was refreshed by the chainChanged handler
+            const currentWeb3 = this.walletManager.web3;
+
+            // Update button state
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2V4M12 20V22M4 12H2M6.31 6.31L4.9 4.9M17.69 6.31L19.1 4.9M6.31 17.69L4.9 19.1M17.69 17.69L19.1 19.1M22 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Preparing...';
+            }
+            if (statusEl) {
+                statusEl.textContent = 'Preparing transaction...';
+                statusEl.style.color = '#6b7280';
+            }
+
+            // Convert proof bytes to hex
+            const proofBytesHex = this.arrayBufferToHex(proofBytes);
+            const publicValuesHex = this.arrayBufferToHex(publicValues);
+
+            // Get the ProvingManager contract ABI
+            const provingManagerAbi = [
+                {
+                    "inputs": [
+                        { "internalType": "string", "name": "configName", "type": "string" },
+                        { "internalType": "bytes", "name": "publicValues", "type": "bytes" },
+                        { "internalType": "bytes", "name": "proofBytes", "type": "bytes" }
+                    ],
+                    "name": "verifyAndEmit",
+                    "outputs": [],
+                    "stateMutability": "nonpayable",
+                    "type": "function"
+                }
+            ];
+
+            // Create contract instance and encode function call
+            const provingManager = new currentWeb3.eth.Contract(provingManagerAbi, metadata.manager_address);
+            const txData = provingManager.methods.verifyAndEmit(
+                metadata.config_name,
+                publicValuesHex,
+                proofBytesHex
+            ).encodeABI();
+
+            if (statusEl) {
+                statusEl.textContent = `Sending to ${metadata.blockchain_network}...`;
+            }
+
+            // Send transaction
+            const tx = {
+                from: this.walletManager.account,
+                to: metadata.manager_address,
+                data: txData,
+                value: '0x0'
+            };
+
+            const receipt = await currentWeb3.eth.sendTransaction(tx);
+
+            // Track the transaction
+            if (this.walletManager && this.walletManager.addTransaction) {
+                this.walletManager.addTransaction(receipt.transactionHash, metadata.manager_address);
+            }
+
+            // Success — update button
+            if (btn) {
+                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Published!';
+                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                btn.disabled = true;
+            }
+
+            if (statusEl) {
+                const explorerUrl = metadata.blockchain_network.toLowerCase() === 'mainnet'
+                    ? `https://etherscan.io/tx/${receipt.transactionHash}`
+                    : `https://${metadata.blockchain_network}.etherscan.io/tx/${receipt.transactionHash}`;
+                statusEl.innerHTML = `<a href="${explorerUrl}" target="_blank" style="color: #10b981;">Tx confirmed!</a>`;
+            }
+
+            this.walletManager.showToast('Proof published to blockchain successfully!');
+
+        } catch (error) {
+            console.error('Failed to publish proof:', error);
+
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Publish to Chain';
+                btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+            }
+
+            if (statusEl) {
+                statusEl.textContent = `Failed: ${error.message}`;
+                statusEl.style.color = '#dc2626';
+            }
+
+            this.walletManager.showToast(`Failed to publish proof: ${error.message}`, true);
+        }
     }
 
     async loadFraudData() {
