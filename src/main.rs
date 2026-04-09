@@ -60,14 +60,14 @@ struct Args {
     #[clap(
         long,
         env,
-        default_value = "0xD7092928Be395B318cDaeEAE0245b0a66ae357a3"
+        default_value = "0x46025D5d224e423c7B79AACE2c8cf8cf389069aC"
     )]
     pub commiter_address: Address,
 
     #[clap(
         long,
         env,
-        default_value = "0x9f9d8535e8A2E503E034b142F136ABF3BeCF3CF2"
+        default_value = "0x4d8d508267feB023aB937B3D503feb9Cc89e8Af9"
     )]
     pub manager_address: Address,
 
