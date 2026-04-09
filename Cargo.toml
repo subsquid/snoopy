@@ -31,3 +31,4 @@ rocket = { version = "0.5.1", features = ["json"] }
 uuid = { version = "1.18.1", features = ["v4"] }
 tikv-jemallocator = "0.5"
 rand = "0.8"
+futures-util = "0.3"

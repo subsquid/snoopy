@@ -143,6 +143,31 @@ impl ProofStorage {
         );
     }
 
+    /// Mark an existing proof as published.  Returns `true` if the entry existed.
+    fn mark_published(&mut self, query_id: &str) -> bool {
+        if let Some(proof) = self.proofs.get_mut(query_id) {
+            proof.is_published = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// If the proof already exists mark it published; otherwise insert a
+    /// placeholder entry (empty proof / public-values) with `is_published = true`.
+    fn upsert_published(&mut self, query_id: String) {
+        if !self.mark_published(&query_id) {
+            self.proofs.insert(
+                query_id,
+                Proof {
+                    proof_bytes: vec![],
+                    public_values: vec![],
+                    is_published: true,
+                },
+            );
+        }
+    }
+
     /// Returns query_ids of **all** known proofs.
     fn list_all(&self) -> Vec<String> {
         self.proofs.keys().cloned().collect()
@@ -458,6 +483,132 @@ fn find_odds_in_siblings(siblings: &Vec<QueryExecutedRow>) -> Result<Vec<String>
     let max_num = map.iter().map(|(_, v)| v.len()).max().ok_or(anyhow!("Empty input for odds finder"))?;
     let res = map.values().filter(|v| v.len() < max_num).cloned().collect::<Vec<_>>().concat();
     Ok(res)
+}
+
+async fn get_query_id_by_worker_and_ts(
+    client: &Client,
+    worker_id: &str,
+    ts_ms: u64,
+) -> Result<Option<String>, anyhow::Error> {
+    // worker_timestamp in worker_query_logs is in seconds; the event timestamp is in milliseconds.
+    let ts_sec = (ts_ms / 1000) as u32;
+    let mut cursor = client
+        .query(
+            "SELECT any(query_id) as query_id \
+             FROM mainnet.worker_query_logs \
+             WHERE worker_id = ? \
+               AND worker_timestamp = ? \
+             HAVING count() > 0",
+        )
+        .bind(worker_id)
+        .bind(ts_sec)
+        .fetch::<QueryIdRow>()?;
+
+    if let Some(row) = cursor.next().await? {
+        Ok(Some(row.query_id))
+    } else {
+        Ok(None)
+    }
+}
+
+fn start_fetch_loop(state: &InternalState) {
+    use alloy::{
+        primitives::U256,
+        providers::{ProviderBuilder, WsConnect},
+    };
+    use futures_util::StreamExt;
+    use snoopy::ProvingManager;
+
+    let local_config = state.config.clone();
+    let local_proof_storage = Arc::clone(&state.proof_storage);
+
+    tokio::spawn(async move {
+        loop {
+            let rpc_url = local_config.rpc_url.clone();
+            let manager_address = local_config.manager_address;
+            let db_url = local_config.db_url.clone();
+            let db_database = local_config.db_database.clone();
+            let db_user = local_config.db_user.clone();
+            let db_password = local_config.db_password.clone();
+            let ws = WsConnect::new(rpc_url.clone());
+            let provider = match ProviderBuilder::new().connect_ws(ws).await {
+                Ok(p) => p,
+                Err(err) => {
+                    error!("fetch_loop: failed to connect to WS RPC: {err:?}");
+                    sleep(Duration::from_secs(10)).await;
+                    continue;
+                }
+            };
+
+            let proving_manager = ProvingManager::new(manager_address, provider);
+            let event_filter = proving_manager.FraudFound_filter();
+            let mut stream = match event_filter.watch().await {
+                Ok(s) => s.into_stream(),
+                Err(err) => {
+                    error!("fetch_loop: failed to subscribe to FraudFound events: {err:?}");
+                    sleep(Duration::from_secs(10)).await;
+                    continue;
+                }
+            };
+
+            info!("fetch_loop: subscribed to FraudFound events");
+
+            let client = Client::default()
+                .with_url(db_url)
+                .with_database(db_database)
+                .with_user(db_user)
+                .with_password(db_password)
+                .with_option("max_execution_time", "60");
+
+            loop {
+                match stream.next().await {
+                    None => {
+                        info!("fetch_loop: FraudFound stream ended, reconnecting...");
+                        break;
+                    }
+                    Some(Err(err)) => {
+                        error!("fetch_loop: error receiving FraudFound event: {err:?}");
+                        break;
+                    }
+                    Some(Ok((event, _log))) => {
+                        let worker_id: String = event.peer_id.clone();
+                        let ts_ms: u64 = event.timestamp.to::<u64>();
+                        info!(
+                            "fetch_loop: received FraudFound event for worker_id={worker_id} ts_ms={ts_ms}"
+                        );
+
+                        let query_id = match get_query_id_by_worker_and_ts(
+                            &client,
+                            &worker_id,
+                            ts_ms,
+                        )
+                        .await
+                        {
+                            Ok(Some(qid)) => qid,
+                            Ok(None) => {
+                                error!(
+                                    "fetch_loop: no query_id found for worker_id={worker_id} ts_ms={ts_ms}"
+                                );
+                                continue;
+                            }
+                            Err(err) => {
+                                error!(
+                                    "fetch_loop: clickhouse error while fetching query_id for worker_id={worker_id} ts_ms={ts_ms}: {err:?}"
+                                );
+                                continue;
+                            }
+                        };
+
+                        info!(
+                            "fetch_loop: marking query_id={query_id} as published (worker_id={worker_id})"
+                        );
+                        let mut storage = local_proof_storage.lock().unwrap();
+                        storage.upsert_published(query_id);
+                    }
+                }
+            }
+        }
+    });
 }
 
 fn start_discovery_loop(state: &InternalState) {
@@ -905,6 +1056,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     };
     start_discovery_loop(&state);
     start_run_loop(&state);
+    start_fetch_loop(&state);
     let _ = rocket::build()
         .manage(state)
         .mount("/", routes![index, styles, app_js, submit_task, get_task_status, get_all_tasks, get_metadata, get_all_proofs])

@@ -7238,6 +7238,7 @@ dependencies = [
  "dotenv",
  "eth_trie",
  "flate2",
+ "futures-util",
  "libp2p-identity",
  "rand 0.8.5",
  "reqwest",
