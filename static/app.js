@@ -552,7 +552,9 @@ class TaskMonitor {
         this.bindEvents();
         this.loadTasks();
         this.loadFraudData(); // Load fraud data on init
+        this.loadProofs(); // Load proofs on init (proof-storage is the default active tab)
         this.startAutoRefresh();
+        this.startProofsAutoRefresh();
     }
 
     bindEvents() {
