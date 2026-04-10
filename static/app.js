@@ -540,6 +540,7 @@ class TaskMonitor {
         this.tasks = [];
         this.proofs = [];
         this.refreshInterval = null;
+        this.proofsRefreshInterval = null;
         this.metadata = null;
         this.ethEvents = [];
         this.fraudData = [];
@@ -1022,6 +1023,21 @@ class TaskMonitor {
         if (this.refreshInterval) {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
+        }
+    }
+
+    startProofsAutoRefresh() {
+        this.stopProofsAutoRefresh();
+        // Refresh every 5 seconds
+        this.proofsRefreshInterval = setInterval(() => {
+            this.loadProofs();
+        }, 5000);
+    }
+
+    stopProofsAutoRefresh() {
+        if (this.proofsRefreshInterval) {
+            clearInterval(this.proofsRefreshInterval);
+            this.proofsRefreshInterval = null;
         }
     }
 
@@ -1533,7 +1549,9 @@ class TaskMonitor {
     async loadProofs() {
         try {
             const container = document.getElementById('proofs-container');
-            if (container) {
+            // Only show the loading spinner on initial load (container is empty or still showing
+            // a loading/error state), not on periodic auto-refresh updates.
+            if (container && (container.querySelector('.loading-state') || container.querySelector('.error-state') || container.children.length === 0)) {
                 container.innerHTML = `
                     <div class="loading-state">
                         <div class="subsquid-loader"></div>
@@ -2145,9 +2163,12 @@ function switchTab(tabName) {
         window.taskMonitor.loadFraudData();
     }
 
-    // Load proofs when proof storage tab is opened
+    // Start/stop proofs auto-refresh based on active tab
     if (tabName === 'proof-storage' && window.taskMonitor) {
         window.taskMonitor.loadProofs();
+        window.taskMonitor.startProofsAutoRefresh();
+    } else if (window.taskMonitor) {
+        window.taskMonitor.stopProofsAutoRefresh();
     }
 }
 
@@ -2160,5 +2181,6 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('beforeunload', () => {
     if (window.taskMonitor) {
         window.taskMonitor.stopAutoRefresh();
+        window.taskMonitor.stopProofsAutoRefresh();
     }
 });
