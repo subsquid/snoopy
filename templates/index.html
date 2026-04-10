@@ -50,7 +50,15 @@
             <div class="container">
                 <!-- Tab Navigation -->
                 <div class="tab-navigation">
-                    <button class="tab-button active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                    <button class="tab-button active" data-tab="proof-storage" onclick="switchTab('proof-storage')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Proof Storage
+                    </button>
+                    <button class="tab-button" data-tab="dashboard" onclick="switchTab('dashboard')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             <path d="M9 22V12H15V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -64,14 +72,6 @@
                         </svg>
                         Fraud Events
                     </button>
-                    <button class="tab-button" data-tab="proof-storage" onclick="switchTab('proof-storage')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Proof Storage
-                    </button>
                     <button class="tab-button" data-tab="my-transactions" onclick="switchTab('my-transactions')" id="transactions-tab-btn" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
@@ -83,8 +83,24 @@
 
                 <!-- Tab Content -->
                 <div class="tab-content">
+                    <!-- Proof Storage Tab -->
+                    <div id="proof-storage-tab" class="tab-pane active">
+                        <div class="tasks-section">
+                            <div class="section-header">
+                                <h2>Proof Storage</h2>
+                            </div>
+
+                            <div id="proofs-container" class="tasks-container">
+                                <div class="loading-state">
+                                    <div class="subsquid-loader"></div>
+                                    <p>Loading proofs...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Dashboard Tab -->
-                    <div id="dashboard-tab" class="tab-pane active">
+                    <div id="dashboard-tab" class="tab-pane">
                         <div class="tasks-section">
                             <div class="section-header">
                                 <h2>ZK Tasks</h2>
@@ -134,22 +150,6 @@
                                 <div class="loading-state">
                                     <div class="subsquid-loader"></div>
                                     <p>Loading fraud data...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Proof Storage Tab -->
-                    <div id="proof-storage-tab" class="tab-pane">
-                        <div class="tasks-section">
-                            <div class="section-header">
-                                <h2>Proof Storage</h2>
-                            </div>
-
-                            <div id="proofs-container" class="tasks-container">
-                                <div class="loading-state">
-                                    <div class="subsquid-loader"></div>
-                                    <p>Loading proofs...</p>
                                 </div>
                             </div>
                         </div>
