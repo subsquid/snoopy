@@ -199,7 +199,7 @@ pub async fn get_query_id_by_worker_and_ts(
              FROM mainnet.worker_query_logs
              WHERE client_timestamp = ?
                AND worker_id = ?
-             HAVING count() > 1
+             HAVING count() > 0
             ",
         )
         .bind(format!("{:0.3}", ts_sec))
