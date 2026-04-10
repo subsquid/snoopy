@@ -1665,13 +1665,13 @@ class TaskMonitor {
                     <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${proofHex}">
                         ${proofHex.slice(0, 40)}…
                     </div>
-                    <button onclick="navigator.clipboard.writeText('${proofHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>
+                    ${proof.proof_bytes && proof.proof_bytes.length > 0 ? `<button onclick="navigator.clipboard.writeText('${proofHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>` : ''}
                 </td>
                 <td>
                     <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${publicValuesHex}">
                         ${publicValuesHex.slice(0, 40)}…
                     </div>
-                    <button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>
+                    ${proof.public_values && proof.public_values.length > 0 ? `<button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>` : ''}
                 </td>
                 <td>${publishedBadge}</td>
                 <td>${publishButton}</td>
