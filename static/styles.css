@@ -1776,24 +1776,60 @@ body, html {
     line-height: 1.55;
 }
 
+/* Wrapper that holds a row + its children group */
+.dt-wrapper {
+    display: block;
+}
+
+/* Children visibility */
+.dt-children { display: block; }
+.dt-children-hidden { display: none; }
+
 /* Each tree node (one event row) */
 .dt-node {
     display: flex;
     align-items: flex-start;
     gap: 6px;
-    padding: 3px 0;
+    padding: 3px 8px 3px 0;
     border-radius: 4px;
+    /* left padding is set inline by JS based on depth */
 }
 
 .dt-node:hover {
     background: #f5f3ff;
 }
 
-/* Indentation guide lines; each level adds 20 px of padding */
-.dt-node[data-level="0"] { padding-left: 4px; }
-.dt-node[data-level="1"] { padding-left: 28px; }
-.dt-node[data-level="2"] { padding-left: 52px; }
-.dt-node[data-level="3"] { padding-left: 76px; }
+/* Toggle chevron button */
+.dt-toggle {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: color 0.15s ease, transform 0.2s ease;
+}
+
+.dt-toggle:hover { color: #4f46e5; background: #ede9fe; }
+
+/* Point chevron right when collapsed */
+.dt-toggle.dt-toggle-collapsed svg {
+    transform: rotate(-90deg);
+}
+
+/* Hidden placeholder so rows without children stay aligned */
+.dt-toggle-hidden {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Depth-based padding is now applied inline by JS (4 + depth*20 px). */
 
 /* Icon column */
 .dt-icon {

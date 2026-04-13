@@ -2205,12 +2205,142 @@ function fmtTs(ts) {
     return d.toLocaleTimeString([], { hour12: false });
 }
 
+// Set of event indices whose children are collapsed.
+// Keyed by the flat event index (string) so it persists across re-renders.
+const _discoveryCollapsed = new Set();
+
 /**
- * Render the discovery events as a flat list with indentation levels into
+ * Build a recursive tree structure from the flat event list.
+ * Each node: { ev, idx, children: [] }
+ * Nodes are nested by their `level` field.
+ */
+function buildEventTree(events) {
+    const roots = [];
+    // stack[level] = the most recent node at that depth
+    const stack = [];
+
+    events.forEach((ev, idx) => {
+        const level = ev.level ?? 0;
+        const node = { ev, idx, children: [] };
+
+        if (level === 0 || stack.length === 0) {
+            roots.push(node);
+            stack.length = 0;
+            stack[0] = node;
+        } else {
+            // find the nearest ancestor at level-1
+            const parentLevel = level - 1;
+            // walk stack down if needed
+            if (parentLevel < stack.length && stack[parentLevel]) {
+                stack[parentLevel].children.push(node);
+            } else {
+                // no proper parent found – attach to the closest shallower node
+                let parent = null;
+                for (let l = parentLevel; l >= 0; l--) {
+                    if (stack[l]) { parent = stack[l]; break; }
+                }
+                if (parent) parent.children.push(node);
+                else roots.push(node);
+            }
+            // update stack at current level
+            stack[level] = node;
+            // clear any deeper levels
+            stack.length = level + 1;
+        }
+    });
+
+    return roots;
+}
+
+/**
+ * Render one tree node (and its children) into a DocumentFragment.
+ * @param {object} node  – { ev, idx, children }
+ * @param {number} depth – visual nesting depth (0-based)
+ */
+function renderTreeNode(node, depth) {
+    const { ev, idx, children } = node;
+    const isError = ev.kind === 'error';
+    const hasChildren = children.length > 0;
+    const collapsed = _discoveryCollapsed.has(idx);
+
+    // --- wrapper ---
+    const wrapper = document.createElement('div');
+    wrapper.className = 'dt-wrapper';
+
+    // --- row ---
+    const row = document.createElement('div');
+    row.className = 'dt-node' + (isError ? ' dt-error' : '');
+    row.dataset.depth = depth;
+    row.style.paddingLeft = (4 + depth * 20) + 'px';
+
+    // Toggle chevron (only for nodes with children)
+    const toggle = document.createElement('button');
+    toggle.className = 'dt-toggle' + (hasChildren ? '' : ' dt-toggle-hidden');
+    toggle.setAttribute('aria-label', collapsed ? 'Expand' : 'Collapse');
+    toggle.innerHTML =
+        `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">` +
+        `<path d="M2 3L5 7L8 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `</svg>`;
+    if (collapsed) toggle.classList.add('dt-toggle-collapsed');
+
+    if (hasChildren) {
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (_discoveryCollapsed.has(idx)) {
+                _discoveryCollapsed.delete(idx);
+            } else {
+                _discoveryCollapsed.add(idx);
+            }
+            // Re-render the tree (data is still in scope via closure of last poll)
+            if (window._lastDiscoveryData) {
+                renderDiscoveryTree(window._lastDiscoveryData);
+            }
+        });
+    }
+
+    // Icon
+    const icon = document.createElement('span');
+    icon.className = 'dt-icon ' + (isError ? 'dt-icon-error' : 'dt-icon-info');
+    icon.textContent = isError ? '✕' : '•';
+
+    // Timestamp
+    const ts = document.createElement('span');
+    ts.className = 'dt-ts';
+    ts.textContent = fmtTs(ev.ts);
+
+    // Message
+    const msg = document.createElement('span');
+    msg.className = 'dt-msg';
+    msg.textContent = ev.message || '';
+
+    row.appendChild(toggle);
+    row.appendChild(icon);
+    row.appendChild(ts);
+    row.appendChild(msg);
+    wrapper.appendChild(row);
+
+    // --- children group ---
+    if (hasChildren) {
+        const childGroup = document.createElement('div');
+        childGroup.className = 'dt-children' + (collapsed ? ' dt-children-hidden' : '');
+        for (const child of children) {
+            childGroup.appendChild(renderTreeNode(child, depth + 1));
+        }
+        wrapper.appendChild(childGroup);
+    }
+
+    return wrapper;
+}
+
+/**
+ * Render the discovery events as a collapsible tree into
  * #discovery-tree-container and update the #discovery-meta line.
  * @param {object} data – the full /discovery-progress JSON payload
  */
 function renderDiscoveryTree(data) {
+    // Store for re-render on toggle
+    window._lastDiscoveryData = data;
+
     const container = document.getElementById('discovery-tree-container');
     const meta = document.getElementById('discovery-meta');
     if (!container) return;
@@ -2232,32 +2362,10 @@ function renderDiscoveryTree(data) {
         return;
     }
 
+    const roots = buildEventTree(events);
     const fragment = document.createDocumentFragment();
-    for (const ev of events) {
-        const isError = ev.kind === 'error';
-        const node = document.createElement('div');
-        node.className = 'dt-node' + (isError ? ' dt-error' : '');
-        node.dataset.level = ev.level ?? 0;
-
-        // Icon
-        const icon = document.createElement('span');
-        icon.className = 'dt-icon ' + (isError ? 'dt-icon-error' : 'dt-icon-info');
-        icon.textContent = isError ? '✕' : '•';
-
-        // Timestamp
-        const ts = document.createElement('span');
-        ts.className = 'dt-ts';
-        ts.textContent = fmtTs(ev.ts);
-
-        // Message
-        const msg = document.createElement('span');
-        msg.className = 'dt-msg';
-        msg.textContent = ev.message || '';
-
-        node.appendChild(icon);
-        node.appendChild(ts);
-        node.appendChild(msg);
-        fragment.appendChild(node);
+    for (const root of roots) {
+        fragment.appendChild(renderTreeNode(root, 0));
     }
 
     container.innerHTML = '';
