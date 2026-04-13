@@ -243,13 +243,32 @@ pub enum DiscoveryEvent {
 }
 
 /// Accumulated state of the discovery loop that can be queried via HTTP.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscoveryLoopProgress {
     /// Monotonically-increasing counter of completed discovery iterations.
     pub iteration: u64,
-    /// Unix timestamp (seconds) of when the current/last iteration started.
+    /// Unix timestamp (seconds) of when the current/last iteration began.
     pub iteration_started_at: u64,
+    /// The fixed number of high-level stages that every iteration passes through.
+    /// Exposed so a UI can render a progress bar without hard-coding the value.
+    pub max_stages: u8,
+    /// Which stage the loop is currently executing (1-based; 0 = not started /
+    /// between iterations).  Advances every time the loop enters a new stage and
+    /// is reset to 0 at the beginning of a fresh iteration.
+    pub current_stage: u8,
     /// All events recorded in the current iteration (cleared at the start of
     /// each new iteration so the list stays bounded).
     pub events: Vec<DiscoveryEvent>,
+}
+
+impl Default for DiscoveryLoopProgress {
+    fn default() -> Self {
+        Self {
+            iteration: 0,
+            iteration_started_at: 0,
+            max_stages: crate::loops::discovery::DISCOVERY_MAX_STAGES,
+            current_stage: 0,
+            events: Vec::new(),
+        }
+    }
 }
