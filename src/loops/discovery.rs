@@ -66,6 +66,7 @@ fn now_secs() -> u64 {
 fn push_stage(
     progress: &Arc<Mutex<DiscoveryLoopProgress>>,
     stage: u8,
+    level: u8,
     label: impl Into<String>,
 ) {
     let msg = label.into();
@@ -73,7 +74,7 @@ fn push_stage(
     let mut p = progress.lock().unwrap();
     p.current_stage = stage;
     p.events.push(DiscoveryEvent::Info {
-        level: 0,
+        level,
         message: format!("[stage {stage}/{DISCOVERY_MAX_STAGES}] {msg}"),
         ts: now_secs(),
     });
@@ -160,7 +161,7 @@ pub fn start_discovery_loop(state: &InternalState) {
             // ----------------------------------------------------------------
             // Stage 1: Fetch suspicious hashes
             // ----------------------------------------------------------------
-            push_stage(&local_progress, STAGE_FETCH_SUSPICIOUS, "Fetching suspicious hashes");
+            push_stage(&local_progress, STAGE_FETCH_SUSPICIOUS, 0, "Fetching suspicious hashes");
             let suspicious_hashes =
                 match get_suspicious_hashes(&client, range_start_sec, range_end_sec).await {
                     Ok(hashes) => hashes,
@@ -182,7 +183,7 @@ pub fn start_discovery_loop(state: &InternalState) {
             // ----------------------------------------------------------------
             // Stage 2: Investigate suspicious hashes
             // ----------------------------------------------------------------
-            push_stage(&local_progress, STAGE_INVESTIGATE, "Investigating suspicious hashes");
+            push_stage(&local_progress, STAGE_INVESTIGATE, 0, "Investigating suspicious hashes");
             let res =
                 match investigate_hash(&client, range_start_sec, range_end_sec, suspicious_hashes)
                     .await
@@ -207,10 +208,16 @@ pub fn start_discovery_loop(state: &InternalState) {
             // Per investigation row
             // ----------------------------------------------------------------
             for row in &res {
+                push_info(
+                    &local_progress,
+                    0,
+                    format!("Investigating {}", row.hash),
+                );
                 // Stage 3: Fetch siblings --------------------------------
                 push_stage(
                     &local_progress,
                     STAGE_FETCH_SIBLINGS,
+                    1,
                     format!("Fetching siblings for hash {:?}", row.hash),
                 );
                 let siblings = match get_siblings_queries_by_investigate_row(
@@ -244,6 +251,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                 push_stage(
                     &local_progress,
                     STAGE_FIND_ODDS,
+                    1,
                     format!("Finding oddities for hash {:?}", row.hash),
                 );
                 let odds = match find_odds_in_siblings(&siblings) {
@@ -267,6 +275,11 @@ pub fn start_discovery_loop(state: &InternalState) {
                 // Per oddity (query_id)
                 // --------------------------------------------------------
                 for query_id in odds {
+                    push_info(
+                        &local_progress,
+                        1,
+                        format!("Investigating oddity: {query_id:?}"),
+                    );
                     // Skip proof creation if a proof already exists for this query_id
                     {
                         let storage = local_proof_storage.lock().unwrap();
@@ -286,6 +299,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                     push_stage(
                         &local_progress,
                         STAGE_ASSIGNMENT_MAP,
+                        2,
                         format!("Resolving assignment-id map for query_id {query_id}"),
                     );
                     let assignment_id_map =
@@ -318,6 +332,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                     push_stage(
                         &local_progress,
                         STAGE_FETCH_SIGNATURES,
+                        2,
                         format!("Fetching signatures for query_id {query_id}"),
                     );
                     let signatures = match get_signatures(
@@ -362,6 +377,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                     push_stage(
                         &local_progress,
                         STAGE_ASSEMBLE_PROOF_DATA,
+                        2,
                         format!("Assembling proof data entries for query_id {query_id}"),
                     );
                     let program_path = local_config.program_path.clone();
@@ -459,6 +475,12 @@ pub fn start_discovery_loop(state: &InternalState) {
                         };
                         used_keys.insert(proof_row.worker_id.clone());
                         proof_data_list.push(proof);
+                        push_stage(
+                            &local_progress,
+                            STAGE_ASSEMBLE_PROOF_DATA,
+                            3,
+                            format!("Got MPT proof for eligibility of {}", proof_row.worker_id),
+                        );
                     }
 
                     if proof_data_list.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
@@ -487,6 +509,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                     push_stage(
                         &local_progress,
                         STAGE_BUILD_ZK_PROOF,
+                        2,
                         format!("Building ZK proof for query_id {query_id}"),
                     );
                     let proof_result = if local_config.fake_proof {
