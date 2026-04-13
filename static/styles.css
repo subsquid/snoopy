@@ -18,6 +18,18 @@ body, html {
     padding: 0 24px;
 }
 
+@media (min-width: 1400px) {
+    .container {
+        max-width: 1400px;
+    }
+}
+
+@media (min-width: 1800px) {
+    .container {
+        max-width: 1760px;
+    }
+}
+
 /* Header styles */
 .header {
     background: #ffffff;
@@ -1481,7 +1493,6 @@ body, html {
     font-size: 13px;
     background: #ffffff;
     border-radius: 6px;
-    overflow: hidden;
     border: 1px solid rgba(16, 21, 31, 0.06);
 }
 
@@ -1628,6 +1639,9 @@ body, html {
 .table-wrapper .sqd-table {
     border: none;
     border-radius: 0;
+    overflow: visible;
+    width: max-content;
+    min-width: 100%;
 }
 
 /* Table Actions Column */

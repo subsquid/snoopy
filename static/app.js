@@ -1646,7 +1646,7 @@ class TaskMonitor {
         // this._proofDataMap[rowId] inside postProofFromStorage to avoid
         // embedding large byte arrays in HTML attributes.
         const publishButton = !proof.is_published
-            ? `<div>
+            ? `<div style="display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;">
                 <button
                     id="proof-publish-btn-${rowId}"
                     onclick="window.taskMonitor.postProofFromStorage('${rowId}')"
@@ -1673,25 +1673,25 @@ class TaskMonitor {
                     </svg>
                     Publish to Chain
                 </button>
-                <div id="proof-publish-status-${rowId}" style="font-size: 11px; color: #6b7280; margin-top: 4px;"></div>
+                <span id="proof-publish-status-${rowId}" style="font-size: 11px; color: #6b7280;"></span>
                </div>`
             : `<span style="color: #9ca3af; font-size: 12px;">—</span>`;
 
         return `
             <tr>
                 <td><span class="row-number">${rowNum}</span></td>
-                <td class="mono">${safeQueryId}</td>
+                <td class="mono" style="white-space: nowrap;">${safeQueryId}</td>
                 <td>
-                    <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${proofHex}">
-                        ${proofHex.slice(0, 40)}…
+                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                        <span style="font-size: 11px; font-family: monospace;" title="${proofHex}">${proofHex.slice(0, 40)}…</span>
+                        ${proof.proof_bytes && proof.proof_bytes.length > 0 ? `<button onclick="navigator.clipboard.writeText('${proofHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; white-space: nowrap; flex-shrink: 0;">Copy</button>` : ''}
                     </div>
-                    ${proof.proof_bytes && proof.proof_bytes.length > 0 ? `<button onclick="navigator.clipboard.writeText('${proofHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>` : ''}
                 </td>
                 <td>
-                    <div style="font-size: 11px; font-family: monospace; word-break: break-all; max-width: 220px; max-height: 60px; overflow: hidden; text-overflow: ellipsis;" title="${publicValuesHex}">
-                        ${publicValuesHex.slice(0, 40)}…
+                    <div style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                        <span style="font-size: 11px; font-family: monospace;" title="${publicValuesHex}">${publicValuesHex.slice(0, 40)}…</span>
+                        ${proof.public_values && proof.public_values.length > 0 ? `<button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; white-space: nowrap; flex-shrink: 0;">Copy</button>` : ''}
                     </div>
-                    ${proof.public_values && proof.public_values.length > 0 ? `<button onclick="navigator.clipboard.writeText('${publicValuesHex}').then(() => taskMonitor.showToast('Copied!'))" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; cursor: pointer; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb;">Copy</button>` : ''}
                 </td>
                 <td>${publishedBadge}</td>
                 <td>${publishButton}</td>
