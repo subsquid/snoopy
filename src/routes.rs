@@ -2,7 +2,7 @@
 
 use crate::{
     state::InternalState,
-    types::{Metadata, ProofEntry, Task, TaskDescription, TaskStatus},
+    types::{DiscoveryLoopProgress, Metadata, ProofEntry, Task, TaskDescription, TaskStatus},
 };
 use rocket::{State, get, post, serde::json::Json, fs::NamedFile};
 use std::collections::HashMap;
@@ -142,4 +142,12 @@ pub async fn submit_task(
         },
     );
     Json(task_id)
+}
+
+#[get("/discovery-progress")]
+pub async fn get_discovery_progress(
+    state: &State<InternalState>,
+) -> Json<DiscoveryLoopProgress> {
+    let progress = state.discovery_progress.lock().unwrap();
+    Json(progress.clone())
 }

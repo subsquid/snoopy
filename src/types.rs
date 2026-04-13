@@ -213,3 +213,43 @@ pub struct PrivateProofData {
     pub client_id: String,
     pub tree_root: Vec<u8>,
 }
+
+// ---------------------------------------------------------------------------
+// Discovery-loop progress tracking
+// ---------------------------------------------------------------------------
+
+/// A single event emitted during discovery loop execution.
+/// `level` indicates nesting depth:
+///   0 = top-level (e.g. "found N suspicious hashes"),
+///   1 = per investigation-row (e.g. "hash X has Y siblings"),
+///   2 = per oddity inside a row (e.g. "odd query_id Z"),
+///   3 = per proof-assembly step inside an oddity.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DiscoveryEvent {
+    /// Informational message; corresponds to `tracing::info!` calls.
+    Info {
+        level: u8,
+        message: String,
+        /// Unix timestamp (seconds) when the event was recorded.
+        ts: u64,
+    },
+    /// Error / setback; corresponds to `tracing::error!` calls.
+    Error {
+        level: u8,
+        message: String,
+        ts: u64,
+    },
+}
+
+/// Accumulated state of the discovery loop that can be queried via HTTP.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DiscoveryLoopProgress {
+    /// Monotonically-increasing counter of completed discovery iterations.
+    pub iteration: u64,
+    /// Unix timestamp (seconds) of when the current/last iteration started.
+    pub iteration_started_at: u64,
+    /// All events recorded in the current iteration (cleared at the start of
+    /// each new iteration so the list stays bounded).
+    pub events: Vec<DiscoveryEvent>,
+}

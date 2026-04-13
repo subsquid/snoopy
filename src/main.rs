@@ -10,11 +10,11 @@ use snoopy::{
     },
     proof_storage::ProofStorage,
     routes::{
-        app_js, get_all_proofs, get_all_tasks, get_metadata, get_task_status, index, styles,
-        submit_task,
+        app_js, get_all_proofs, get_all_tasks, get_discovery_progress, get_metadata,
+        get_task_status, index, styles, submit_task,
     },
     state::InternalState,
-    types::Args,
+    types::{Args, DiscoveryLoopProgress},
 };
 use std::{
     collections::HashMap,
@@ -35,6 +35,7 @@ async fn main() -> Result<(), Box<rocket::Error>> {
     let state = InternalState {
         tasks: Arc::new(Mutex::new(HashMap::new())),
         proof_storage: Arc::new(Mutex::new(ProofStorage::new())),
+        discovery_progress: Arc::new(Mutex::new(DiscoveryLoopProgress::default())),
         config: args,
     };
     start_discovery_loop(&state);
@@ -52,7 +53,8 @@ async fn main() -> Result<(), Box<rocket::Error>> {
                 get_task_status,
                 get_all_tasks,
                 get_metadata,
-                get_all_proofs
+                get_all_proofs,
+                get_discovery_progress
             ],
         )
         .launch()
