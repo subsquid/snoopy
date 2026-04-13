@@ -2174,9 +2174,88 @@ function switchTab(tabName) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Discovery-loop progress bar
+// ---------------------------------------------------------------------------
+
+const DISCOVERY_STAGE_LABELS = [
+    'Fetching suspicious hashes from ClickHouse',
+    'Investigating suspicious hashes (building investigation rows)',
+    'Fetching sibling queries for each investigation row',
+    'Finding oddities (divergent query IDs) among siblings',
+    'Resolving assignment-ID map from on-chain contract',
+    'Fetching worker signatures from ClickHouse',
+    'Assembling proof data entries (MPT proofs + proof structs)',
+    'Building and storing ZK proof',
+];
+
+/**
+ * Render the segmented progress bar inside #discovery-progress-bar.
+ * @param {number} maxStages   – total number of stages (from API, default 8)
+ * @param {number} currentStage – 1-based index of active stage; 0 = idle
+ */
+function renderDiscoveryProgressBar(maxStages, currentStage) {
+    const bar = document.getElementById('discovery-progress-bar');
+    if (!bar) return;
+
+    // Rebuild segments only when the count changes (avoids flicker on every poll)
+    if (bar.childElementCount !== maxStages) {
+        bar.innerHTML = '';
+        for (let i = 1; i <= maxStages; i++) {
+            const seg = document.createElement('div');
+            seg.className = 'dpb-segment';
+            const label = DISCOVERY_STAGE_LABELS[i - 1] || `Stage ${i}`;
+            seg.setAttribute('data-tooltip', `Stage ${i}/${maxStages}: ${label}`);
+            bar.appendChild(seg);
+        }
+    }
+
+    const segments = bar.querySelectorAll('.dpb-segment');
+    segments.forEach((seg, idx) => {
+        const stageNum = idx + 1; // 1-based
+        seg.classList.remove('dpb-done', 'dpb-current', 'dpb-future');
+        if (currentStage === 0) {
+            // Not started / between iterations – all future
+            seg.classList.add('dpb-future');
+        } else if (stageNum < currentStage) {
+            seg.classList.add('dpb-done');
+        } else if (stageNum === currentStage) {
+            seg.classList.add('dpb-current');
+        } else {
+            seg.classList.add('dpb-future');
+        }
+    });
+}
+
+/** Poll /discovery-progress every 2 seconds and update the bar. */
+function startDiscoveryProgressPolling() {
+    async function poll() {
+        try {
+            const response = await fetch('/discovery-progress');
+            if (!response.ok) return;
+            const data = await response.json();
+            renderDiscoveryProgressBar(
+                data.max_stages  || 8,
+                data.current_stage || 0,
+            );
+        } catch (_) {
+            // silently ignore network errors
+        }
+    }
+
+    // Initial render with idle state
+    renderDiscoveryProgressBar(8, 0);
+    poll(); // first fetch immediately
+    return setInterval(poll, 2000);
+}
+
+// ---------------------------------------------------------------------------
 // Initialize when DOM is loaded
+// ---------------------------------------------------------------------------
+
 document.addEventListener('DOMContentLoaded', () => {
     window.taskMonitor = new TaskMonitor();
+    window._discoveryProgressInterval = startDiscoveryProgressPolling();
 });
 
 // Cleanup on page unload
@@ -2184,5 +2263,8 @@ window.addEventListener('beforeunload', () => {
     if (window.taskMonitor) {
         window.taskMonitor.stopAutoRefresh();
         window.taskMonitor.stopProofsAutoRefresh();
+    }
+    if (window._discoveryProgressInterval) {
+        clearInterval(window._discoveryProgressInterval);
     }
 });

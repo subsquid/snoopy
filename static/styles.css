@@ -1741,3 +1741,95 @@ body, html {
     opacity: 1;
     color: #4f46e5;
 }
+
+/* -------------------------------------------------------------------------
+   Discovery loop progress bar
+   ------------------------------------------------------------------------- */
+
+.discovery-progress-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+    height: 10px;
+    border-radius: 6px;
+    overflow: visible; /* so tooltips can escape */
+    position: relative;
+}
+
+/* Each segment fills its equal share */
+.dpb-segment {
+    flex: 1;
+    height: 100%;
+    border-radius: 4px;
+    position: relative;
+    cursor: default;
+    transition: background-color 0.35s ease, opacity 0.35s ease;
+}
+
+/* State: past stage (already done) – normal/vivid colour */
+.dpb-segment.dpb-done {
+    background-color: #4f46e5;
+    opacity: 1;
+}
+
+/* State: current stage – lighter tint of the primary colour */
+.dpb-segment.dpb-current {
+    background-color: #a5b4fc; /* indigo-300 */
+    opacity: 1;
+    /* subtle pulsing animation to show it's live */
+    animation: dpb-pulse 1.4s ease-in-out infinite;
+}
+
+/* State: future stage – very muted */
+.dpb-segment.dpb-future {
+    background-color: #e0e7ff; /* indigo-100 */
+    opacity: 0.7;
+}
+
+@keyframes dpb-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.55; }
+}
+
+/* Tooltip */
+.dpb-segment::after {
+    content: attr(data-tooltip);
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e1b4b;
+    color: #e0e7ff;
+    font-size: 11px;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+    padding: 4px 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 200;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+
+/* Small downward triangle */
+.dpb-segment::before {
+    content: '';
+    display: block;
+    position: absolute;
+    bottom: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1e1b4b;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    z-index: 200;
+}
+
+.dpb-segment:hover::after,
+.dpb-segment:hover::before {
+    opacity: 1;
+}
