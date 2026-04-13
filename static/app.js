@@ -2172,6 +2172,9 @@ function switchTab(tabName) {
     } else if (window.taskMonitor) {
         window.taskMonitor.stopProofsAutoRefresh();
     }
+
+    // Discovery tab: tree is kept up-to-date by the progress-bar polling loop
+    // (no additional action needed here)
 }
 
 // ---------------------------------------------------------------------------
@@ -2188,6 +2191,78 @@ const DISCOVERY_STAGE_LABELS = [
     'Assembling proof data entries (MPT proofs + proof structs)',
     'Building and storing ZK proof',
 ];
+
+// ---------------------------------------------------------------------------
+// Discovery tree view helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Format a unix timestamp (seconds) as HH:MM:SS in local time.
+ */
+function fmtTs(ts) {
+    if (!ts) return '--:--:--';
+    const d = new Date(ts * 1000);
+    return d.toLocaleTimeString([], { hour12: false });
+}
+
+/**
+ * Render the discovery events as a flat list with indentation levels into
+ * #discovery-tree-container and update the #discovery-meta line.
+ * @param {object} data – the full /discovery-progress JSON payload
+ */
+function renderDiscoveryTree(data) {
+    const container = document.getElementById('discovery-tree-container');
+    const meta = document.getElementById('discovery-meta');
+    if (!container) return;
+
+    // Meta line
+    if (meta) {
+        const started = data.iteration_started_at
+            ? fmtTs(data.iteration_started_at)
+            : '—';
+        meta.innerHTML =
+            `<span>Iteration <strong>${data.iteration || 0}</strong></span>` +
+            `<span>Started at <strong>${started}</strong></span>` +
+            `<span>Stage <strong>${data.current_stage || 0} / ${data.max_stages || 8}</strong></span>`;
+    }
+
+    const events = data.events || [];
+    if (events.length === 0) {
+        container.innerHTML = '<div class="empty-state"><p>No events yet for this iteration.</p></div>';
+        return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const ev of events) {
+        const isError = ev.kind === 'error';
+        const node = document.createElement('div');
+        node.className = 'dt-node' + (isError ? ' dt-error' : '');
+        node.dataset.level = ev.level ?? 0;
+
+        // Icon
+        const icon = document.createElement('span');
+        icon.className = 'dt-icon ' + (isError ? 'dt-icon-error' : 'dt-icon-info');
+        icon.textContent = isError ? '✕' : '•';
+
+        // Timestamp
+        const ts = document.createElement('span');
+        ts.className = 'dt-ts';
+        ts.textContent = fmtTs(ev.ts);
+
+        // Message
+        const msg = document.createElement('span');
+        msg.className = 'dt-msg';
+        msg.textContent = ev.message || '';
+
+        node.appendChild(icon);
+        node.appendChild(ts);
+        node.appendChild(msg);
+        fragment.appendChild(node);
+    }
+
+    container.innerHTML = '';
+    container.appendChild(fragment);
+}
 
 /**
  * Render the segmented progress bar inside #discovery-progress-bar.
@@ -2227,7 +2302,7 @@ function renderDiscoveryProgressBar(maxStages, currentStage) {
     });
 }
 
-/** Poll /discovery-progress every 2 seconds and update the bar. */
+/** Poll /discovery-progress every 2 seconds and update both the bar and the tree. */
 function startDiscoveryProgressPolling() {
     async function poll() {
         try {
@@ -2235,9 +2310,10 @@ function startDiscoveryProgressPolling() {
             if (!response.ok) return;
             const data = await response.json();
             renderDiscoveryProgressBar(
-                data.max_stages  || 8,
+                data.max_stages   || 8,
                 data.current_stage || 0,
             );
+            renderDiscoveryTree(data);
         } catch (_) {
             // silently ignore network errors
         }

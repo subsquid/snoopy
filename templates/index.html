@@ -77,6 +77,13 @@
                         </svg>
                         Fraud Events
                     </button>
+                    <button class="tab-button" data-tab="discovery" onclick="switchTab('discovery')">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="11" cy="11" r="8" stroke="currentColor" stroke-width="2"/>
+                            <path d="M21 21L16.65 16.65" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Discovery
+                    </button>
                     <button class="tab-button" data-tab="my-transactions" onclick="switchTab('my-transactions')" id="transactions-tab-btn" style="display: none;">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
@@ -155,6 +162,22 @@
                                 <div class="loading-state">
                                     <div class="subsquid-loader"></div>
                                     <p>Loading fraud data...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Discovery Tab -->
+                    <div id="discovery-tab" class="tab-pane">
+                        <div class="discovery-section">
+                            <div class="section-header">
+                                <h2>Discovery Loop</h2>
+                                <div class="discovery-meta" id="discovery-meta"></div>
+                            </div>
+                            <div id="discovery-tree-container" class="discovery-tree-container">
+                                <div class="loading-state">
+                                    <div class="subsquid-loader"></div>
+                                    <p>Waiting for discovery data…</p>
                                 </div>
                             </div>
                         </div>
