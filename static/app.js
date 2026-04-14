@@ -2209,6 +2209,10 @@ function fmtTs(ts) {
 // Keyed by the flat event index (string) so it persists across re-renders.
 const _discoveryCollapsed = new Set();
 
+// The iteration number that was last fully rendered into the tree.
+// Used to detect when a new iteration starts.
+let _discoveryLastRenderedIteration = 0;
+
 /**
  * Build a recursive tree structure from the flat event list.
  * Each node: { ev, idx, children: [] }
@@ -2335,6 +2339,12 @@ function renderTreeNode(node, depth) {
 /**
  * Render the discovery events as a collapsible tree into
  * #discovery-tree-container and update the #discovery-meta line.
+ *
+ * When the "Freeze log" checkbox is checked and the server reports a
+ * higher iteration number than we last rendered, the tree is NOT replaced
+ * so the user can keep reading the previous iteration's log in peace.
+ * The meta line is still updated to reflect the new iteration.
+ *
  * @param {object} data – the full /discovery-progress JSON payload
  */
 function renderDiscoveryTree(data) {
@@ -2343,18 +2353,34 @@ function renderDiscoveryTree(data) {
 
     const container = document.getElementById('discovery-tree-container');
     const meta = document.getElementById('discovery-meta');
+    const freezeCheckbox = document.getElementById('discovery-freeze-log');
     if (!container) return;
 
-    // Meta line
+    const iteration = data.iteration || 0;
+    const isFrozen = freezeCheckbox && freezeCheckbox.checked;
+    const iterationAdvanced = iteration > _discoveryLastRenderedIteration;
+
+    // Always update meta line so the user sees the current iteration counter
     if (meta) {
         const started = data.iteration_started_at
             ? fmtTs(data.iteration_started_at)
             : '—';
+        const frozenNote = (isFrozen && iterationAdvanced)
+            ? ` <span style="color:#ef4444">(log frozen at iteration ${_discoveryLastRenderedIteration})</span>`
+            : '';
         meta.innerHTML =
-            `<span>Iteration <strong>${data.iteration || 0}</strong></span>` +
+            `<span>Iteration <strong>${iteration}</strong>${frozenNote}</span>` +
             `<span>Started at <strong>${started}</strong></span>` +
             `<span>Stage <strong>${data.current_stage || 0} / ${data.max_stages || 8}</strong></span>`;
     }
+
+    // If frozen and the iteration has advanced, skip rebuilding the tree
+    if (isFrozen && iterationAdvanced) {
+        return;
+    }
+
+    // Record which iteration we are now rendering
+    _discoveryLastRenderedIteration = iteration;
 
     const events = data.events || [];
     if (events.length === 0) {
