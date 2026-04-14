@@ -155,7 +155,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                 .with_option("max_execution_time", "240");
 
             let range_end_sec = now_secs() as u32;
-            let range_start_sec = range_end_sec - 24 * 3600 * 5;
+            let range_start_sec = range_end_sec - 24 * 3600 * 30;
             let start = Instant::now();
 
             // ----------------------------------------------------------------
