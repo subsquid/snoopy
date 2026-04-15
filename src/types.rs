@@ -3,7 +3,6 @@ use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use sqd_messages::{Query, QueryFinished};
-use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
 // CLI arguments
@@ -64,31 +63,6 @@ pub struct Args {
     pub fake_proof: bool,
 }
 
-// ---------------------------------------------------------------------------
-// Task-related types (used by the REST API and the run-loop)
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub enum TaskStatus {
-    NotFound,
-    Pending,
-    Running,
-    Completed,
-    Failed,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Task {
-    pub id: Uuid,
-    pub query_id: String,
-    pub ts: u64,
-    pub creation_ts: u64,
-    pub status: TaskStatus,
-    pub comment: Option<String>,
-    pub proof_bytes: Option<Vec<u8>>,
-    pub public_values: Option<Vec<u8>>,
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Metadata {
     pub network: String,
@@ -112,13 +86,6 @@ pub struct ProofEntry {
     pub proof_bytes: Vec<u8>,
     pub public_values: Vec<u8>,
     pub is_published: bool,
-}
-
-#[derive(Deserialize, Debug)]
-#[serde(crate = "rocket::serde")]
-pub struct TaskDescription {
-    pub query_id: String,
-    pub ts: u64,
 }
 
 // ---------------------------------------------------------------------------

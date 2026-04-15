@@ -116,7 +116,6 @@ class WalletManager {
 
     updateUI() {
         const connectBtn = document.getElementById('wallet-connect-btn');
-        const submitTaskBtn = document.getElementById('submit-task-btn');
 
         if (this.isConnected && this.account) {
             const shortAddress = this.account.slice(0, 6) + '...' + this.account.slice(-4);
@@ -124,11 +123,6 @@ class WalletManager {
             connectBtn.textContent = shortAddress;
             connectBtn.classList.add('connected');
             connectBtn.onclick = () => this.disconnect();
-            
-            // Show submit task button when wallet is connected
-            if (submitTaskBtn) {
-                submitTaskBtn.style.display = 'flex';
-            }
         } else {
             connectBtn.innerHTML = `
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -140,11 +134,6 @@ class WalletManager {
             `;
             connectBtn.classList.remove('connected');
             connectBtn.onclick = () => this.connect();
-            
-            // Hide submit task button when wallet is disconnected
-            if (submitTaskBtn) {
-                submitTaskBtn.style.display = 'none';
-            }
         }
     }
 
@@ -192,10 +181,10 @@ class WalletManager {
             tabBtn.style.display = 'none';
         }
         
-        // If we're currently on the transactions tab, switch to dashboard
+        // If we're currently on the transactions tab, switch to proof-storage
         const currentTab = document.querySelector('.tab-pane.active');
         if (currentTab && currentTab.id === 'my-transactions-tab') {
-            switchTab('dashboard');
+            switchTab('proof-storage');
         }
     }
 
@@ -537,9 +526,7 @@ class WalletManager {
 // Task monitoring application
 class TaskMonitor {
     constructor() {
-        this.tasks = [];
         this.proofs = [];
-        this.refreshInterval = null;
         this.proofsRefreshInterval = null;
         this.metadata = null;
         this.ethEvents = [];
@@ -549,408 +536,9 @@ class TaskMonitor {
     }
 
     init() {
-        this.bindEvents();
-        this.loadTasks();
         this.loadFraudData(); // Load fraud data on init
         this.loadProofs(); // Load proofs on init (proof-storage is the default active tab)
-        this.startAutoRefresh();
         this.startProofsAutoRefresh();
-    }
-
-    bindEvents() {
-        // Form submission - now for modal form
-        const taskForm = document.getElementById('task-form-modal');
-        if (taskForm) {
-            taskForm.addEventListener('submit', (e) => this.submitTask(e));
-        }
-    }
-
-    async loadTasks() {
-        try {
-            const response = await fetch('/tasks');
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const tasks = await response.json();
-            this.tasks = tasks.sort((a, b) => new Date(b.creation_ts * 1000) - new Date(a.creation_ts * 1000));
-            this.renderTasks();
-            this.updateStats();
-        } catch (error) {
-            console.error('Failed to load tasks:', error);
-            this.showToast('Failed to load tasks', true);
-        }
-    }
-
-    renderTasks() {
-        const container = document.getElementById('tasks-container');
-        
-        if (!container) return;
-
-        if (this.tasks.length === 0) {
-            container.innerHTML = `
-                <div class="table-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M19 3H5C3.89543 3 3 3.89543 3 5V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V5C21 3.89543 20.1046 3 19 3Z" stroke="currentColor" stroke-width="2"/
-                        <path d="M3 9H21" stroke="currentColor" stroke-width="2"/
-                        <path d="M9 21V9" stroke="currentColor" stroke-width="2"/
-                    </svg>
-                    <h3>No tasks found</h3>
-                    <p>Submit your first task using the form below</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="table-wrapper">
-                <table class="sqd-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Query ID</th>
-                            <th>Timestamp</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${this.tasks.map((task, index) => this.createTaskRow(task, index + 1)).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    createTaskRow(task, rowNum) {
-        const timestamp = new Date(task.ts * 1000).toLocaleString();
-        const statusClass = task.status.toLowerCase().replace('_', '-');
-        
-        return `
-            <tr onclick="taskMonitor.showTaskDetails('${task.id}')" style="cursor: pointer;">
-                <td><span class="row-number">${rowNum}</span></td>
-                <td class="mono">${this.escapeHtml(task.query_id)}</td>
-                <td class="text-muted">${timestamp}</td>
-                <td><span class="status-badge ${statusClass}">${this.formatStatus(task.status)}</span></td>
-            </tr>
-        `;
-    }
-
-    updateStats() {
-        const totalTasks = this.tasks.length;
-        const runningTasks = this.tasks.filter(task => task.status === 'Running').length;
-        const completedTasks = this.tasks.filter(task => task.status === 'Completed').length;
-
-        // Update DOM elements
-        const totalElement = document.getElementById('total-tasks');
-        const runningElement = document.getElementById('running-tasks');
-        const completedElement = document.getElementById('completed-tasks');
-
-        if (totalElement) totalElement.textContent = totalTasks;
-        if (runningElement) runningElement.textContent = runningTasks;
-        if (completedElement) completedElement.textContent = completedTasks;
-    }
-
-    async showTaskDetails(taskId) {
-        try {
-            const response = await fetch(`/tasks/${taskId}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const task = await response.json();
-            this.showTaskModal(task);
-        } catch (error) {
-            console.error('Failed to load task details:', error);
-            this.showToast('Failed to load task details', true);
-        }
-    }
-
-    showTaskModal(task) {
-        // Create modal overlay
-        const modal = document.createElement('div');
-        modal.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        `;
-
-        const modalContent = document.createElement('div');
-        modalContent.style.cssText = `
-            background: white;
-            border-radius: 12px;
-            padding: 32px;
-            max-width: 600px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-        `;
-
-        const timestamp = new Date(task.ts * 1000).toLocaleString();
-        
-        // Check if wallet is connected and task has proof data
-        const isWalletConnected = this.walletManager.isConnected;
-        const hasProofData = task.proof_bytes && task.public_values;
-        const canPostProof = isWalletConnected && hasProofData;
-        
-        modalContent.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h3 style="margin: 0; font-size: 20px; font-weight: 600;">Task Details</h3>
-                <button onclick="this.closest('.task-modal').remove()" style="
-                    background: none;
-                    border: none;
-                    font-size: 24px;
-                    cursor: pointer;
-                    color: #6b7280;
-                ">×</button>
-            </div>
-            ${canPostProof ? `
-                <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-                    <button id="post-proof-btn" onclick="window.taskMonitor.postProof('${task.id}')" style="
-                        width: 100%;
-                        padding: 12px 20px;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        border: none;
-                        border-radius: 8px;
-                        font-size: 14px;
-                        font-weight: 500;
-                        cursor: pointer;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        gap: 8px;
-                        transition: all 0.2s ease;
-                    " onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.4)';" onmouseout="this.style.transform='none';this.style.boxShadow='none';">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Post Proof to Chain
-                    </button>
-                    <div id="post-proof-status" style="margin-top: 12px; font-size: 13px; color: #6b7280; text-align: center;"></div>
-                </div>
-            ` : !isWalletConnected ? `
-                <div style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e5e7eb;">
-                    <div style="padding: 12px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; font-size: 13px; color: #92400e; text-align: center;">
-                        Connect your wallet to post the proof to the blockchain
-                    </div>
-                </div>
-            ` : ''}
-            <div style="display: grid; gap: 16px;">
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Query ID</label>
-                    <div style="font-size: 14px; color: #1a1a1a; word-break: break-all; margin-top: 4px;">${this.escapeHtml(task.query_id)}</div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Status</label>
-                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${this.formatStatus(task.status)}</div>
-                </div>
-                <div>
-                    <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Timestamp</label>
-                    <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px;">${timestamp}</div>
-                </div>
-                ${task.proof_bytes ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Proof Bytes</label>
-                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0f9ff; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.proof_bytes)}</div>
-                    </div>
-                ` : ''}
-                ${task.public_values ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Public Values</label>
-                        <div style="font-size: 12px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f0fdf4; border-radius: 8px; font-family: monospace; word-break: break-all; max-height: 120px; overflow-y: auto;">${this.formatBytes(task.public_values)}</div>
-                    </div>
-                ` : ''}
-                ${task.comment ? `
-                    <div>
-                        <label style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Comment</label>
-                        <div style="font-size: 14px; color: #1a1a1a; margin-top: 4px; padding: 12px; background: #f9fafb; border-radius: 8px;">${this.escapeHtml(task.comment)}</div>
-                    </div>
-                ` : ''}
-            </div>
-        `;
-
-        modal.className = 'task-modal';
-        modal.appendChild(modalContent);
-        document.body.appendChild(modal);
-
-        // Close modal on background click
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) {
-                modal.remove();
-            }
-        });
-    }
-
-    async postProof(taskId) {
-        try {
-            // Load metadata
-            const metadata = await this.loadMetadata();
-            
-            if (!this.walletManager.isConnected) {
-                this.walletManager.showToast('Please connect your wallet first', true);
-                return;
-            }
-            
-            // Validate network - check if MetaMask is on the correct network
-            const web3 = this.walletManager.web3;
-            const networkId = await web3.eth.net.getId();
-            
-            // Map network names to chain IDs
-            const networkChainIds = {
-                'mainnet': 1,
-                'sepolia': 11155111,
-                'holesky': 17000,
-                'goerli': 5
-            };
-            
-            const expectedChainId = networkChainIds[metadata.blockchain_network.toLowerCase()];
-            
-            if (expectedChainId && networkId !== expectedChainId) {
-                // Try to switch to the correct network
-                try {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x' + expectedChainId.toString(16) }]
-                    });
-                } catch (switchError) {
-                    // Chain not added to MetaMask
-                    if (switchError.code === 4902) {
-                        this.walletManager.showToast(`Please add the ${metadata.blockchain_network} network to MetaMask`, true);
-                    } else {
-                        this.walletManager.showToast(`Please switch to ${metadata.blockchain_network} network in MetaMask`, true);
-                    }
-                    
-                    const btn = document.getElementById('post-proof-btn');
-                    const status = document.getElementById('post-proof-status');
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Post Proof to Chain';
-                        btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-                    }
-                    if (status) {
-                        status.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
-                        status.style.color = '#f59e0b';
-                    }
-                    return;
-                }
-            }
-            
-            // Get task details
-            const response = await fetch(`/tasks/${taskId}`);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            const task = await response.json();
-            
-            if (!task.proof_bytes || !task.public_values) {
-                this.showToast('No proof data available', true);
-                return;
-            }
-            
-            // Update button state
-            const btn = document.getElementById('post-proof-btn');
-            const status = document.getElementById('post-proof-status');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2V4M12 20V22M4 12H2M6.31 6.31L4.9 4.9M17.69 6.31L19.1 4.9M6.31 17.69L4.9 19.1M17.69 17.69L19.1 19.1M22 12H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg> Preparing Transaction...';
-            }
-            
-            // Convert proof bytes to hex
-            const proofBytesHex = this.arrayBufferToHex(task.proof_bytes);
-            const publicValuesHex = this.arrayBufferToHex(task.public_values);
-            
-            // Get the ProvingManager contract ABI
-            const provingManagerAbi = [
-                {
-                    "inputs": [
-                        { "internalType": "string", "name": "configName", "type": "string" },
-                        { "internalType": "bytes", "name": "publicValues", "type": "bytes" },
-                        { "internalType": "bytes", "name": "proofBytes", "type": "bytes" }
-                    ],
-                    "name": "verifyAndEmit",
-                    "outputs": [],
-                    "stateMutability": "nonpayable",
-                    "type": "function"
-                }
-            ];
-            
-            // Create contract instance
-            const provingManager = new web3.eth.Contract(provingManagerAbi, metadata.manager_address);
-            
-            // Encode the function call
-            const txData = provingManager.methods.verifyAndEmit(
-                metadata.config_name,
-                publicValuesHex,
-                proofBytesHex
-            ).encodeABI();
-            
-            // Update status
-            if (status) {
-                status.textContent = 'Ready to send transaction...';
-                status.style.color = '#6b7280';
-            }
-            
-            // Prepare transaction - send to network from metadata endpoint
-            const tx = {
-                from: this.walletManager.account,
-                to: metadata.manager_address,
-                data: txData,
-                value: '0x0'  // Use 0x0 hex format for zero value
-            };
-            
-            if (status) {
-                status.textContent = `Sending to ${metadata.blockchain_network}...`;
-            }
-            
-            // Send transaction - MetaMask will estimate gas automatically
-            const receipt = await web3.eth.sendTransaction(tx);
-            
-            // Track the transaction
-            if (this.walletManager && this.walletManager.addTransaction) {
-                this.walletManager.addTransaction(receipt.transactionHash, metadata.manager_address);
-            }
-            
-            // Success
-            if (btn) {
-                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Proof Posted!';
-                btn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
-            }
-            
-            if (status) {
-                const explorerUrl = metadata.network === 'mainnet' 
-                    ? `https://etherscan.io/tx/${receipt.transactionHash}`
-                    : `https://${metadata.blockchain_network}.etherscan.io/tx/${receipt.transactionHash}`;
-                status.innerHTML = `<a href="${explorerUrl}" target="_blank" style="color: #10b981;">Transaction confirmed!</a>`;
-            }
-            
-            this.walletManager.showToast('Proof posted to blockchain successfully!');
-            
-        } catch (error) {
-            console.error('Failed to post proof:', error);
-            
-            const btn = document.getElementById('post-proof-btn');
-            const status = document.getElementById('post-proof-status');
-            
-            if (btn) {
-                btn.disabled = false;
-                btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Post Proof to Chain';
-                btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-            }
-            
-            if (status) {
-                status.textContent = `Failed: ${error.message}`;
-                status.style.color = '#dc2626';
-            }
-            
-            this.walletManager.showToast(`Failed to post proof: ${error.message}`, true);
-        }
     }
 
     arrayBufferToHex(buffer) {
@@ -962,70 +550,6 @@ class TaskMonitor {
             hex += buffer[i].toString(16).padStart(2, '0');
         }
         return hex;
-    }
-
-    async submitTask(event) {
-        event.preventDefault();
-        
-        const form = event.target;
-        const submitButton = form.querySelector('.submit-btn');
-        const originalText = submitButton.textContent;
-        
-        try {
-            // Disable form
-            submitButton.disabled = true;
-            submitButton.textContent = 'Submitting...';
-            
-            const formData = new FormData(form);
-            const taskData = {
-                query_id: formData.get('query_id'),
-                ts: parseInt(formData.get('ts'))
-            };
-
-            const response = await fetch('/tasks', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(taskData)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const taskId = await response.json();
-            this.showToast('Task submitted successfully!');
-            
-            // Reset and close modal
-            form.reset();
-            closeSubmitTaskModal();
-            
-            // Reload tasks
-            await this.loadTasks();
-            
-        } catch (error) {
-            console.error('Failed to submit task:', error);
-            this.showToast('Failed to submit task', true);
-        } finally {
-            // Re-enable form
-            submitButton.disabled = false;
-            submitButton.textContent = originalText;
-        }
-    }
-
-    startAutoRefresh() {
-        // Refresh every 5 seconds
-        this.refreshInterval = setInterval(() => {
-            this.loadTasks();
-        }, 5000);
-    }
-
-    stopAutoRefresh() {
-        if (this.refreshInterval) {
-            clearInterval(this.refreshInterval);
-            this.refreshInterval = null;
-        }
     }
 
     startProofsAutoRefresh() {
@@ -2001,46 +1525,6 @@ class TaskMonitor {
     }
 }
 
-// Modal management functions
-function openSubmitTaskModal() {
-    const modal = document.getElementById('submit-task-modal');
-    if (modal) {
-        modal.classList.add('show');
-        document.body.style.overflow = 'hidden';
-        
-        // Click outside to close functionality disabled for submit modal
-        
-        // Focus on first input
-        setTimeout(() => {
-            const firstInput = modal.querySelector('input');
-            if (firstInput) firstInput.focus();
-        }, 300);
-    }
-}
-
-function closeSubmitTaskModal() {
-    const modal = document.getElementById('submit-task-modal');
-    if (modal) {
-        modal.classList.remove('show');
-        document.body.style.overflow = '';
-        
-        // Reset form after animation
-        setTimeout(() => {
-            const form = document.getElementById('task-form-modal');
-            if (form) {
-                form.reset();
-            }
-        }, 300);
-    }
-}
-
-// Global functions for HTML onclick handlers
-function refreshTasks() {
-    if (window.taskMonitor) {
-        window.taskMonitor.loadTasks();
-    }
-}
-
 // Ethereum Events Modal management functions
 function openEthEventsModal() {
     const modal = document.getElementById('eth-events-modal');
@@ -2471,7 +1955,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
     if (window.taskMonitor) {
-        window.taskMonitor.stopAutoRefresh();
         window.taskMonitor.stopProofsAutoRefresh();
     }
     if (window._discoveryProgressInterval) {

@@ -20,18 +20,6 @@
                     <h1 class="logo">SQD ZK Monitor</h1>
                     <div class="header-stats">
                         <div class="stat">
-                            <span class="stat-label">Total Tasks</span>
-                            <span class="stat-value" id="total-tasks">0</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">Running</span>
-                            <span class="stat-value running" id="running-tasks">0</span>
-                        </div>
-                        <div class="stat">
-                            <span class="stat-label">Completed</span>
-                            <span class="stat-value completed" id="completed-tasks">0</span>
-                        </div>
-                        <div class="stat">
                             <button class="wallet-connect-btn header-wallet-btn" id="wallet-connect-btn" onclick="connectWallet()">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="2"/>
@@ -62,13 +50,6 @@
                             <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                         Proof Storage
-                    </button>
-                    <button class="tab-button" data-tab="dashboard" onclick="switchTab('dashboard')">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M9 22V12H15V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        ZK Tasks
                     </button>
                     <button class="tab-button" data-tab="fraud-events" onclick="switchTab('fraud-events')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -106,30 +87,6 @@
                                 <div class="loading-state">
                                     <div class="subsquid-loader"></div>
                                     <p>Loading proofs...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Dashboard Tab -->
-                    <div id="dashboard-tab" class="tab-pane">
-                        <div class="tasks-section">
-                            <div class="section-header">
-                                <h2>ZK Tasks</h2>
-                                <div class="header-buttons">
-                                    <button id="submit-task-btn" class="submit-task-btn" onclick="openSubmitTaskModal()" style="display: none;">
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                        </svg>
-                                        Submit Task
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div id="tasks-container" class="tasks-container">
-                                <div class="loading-state">
-                                    <div class="subsquid-loader"></div>
-                                    <p>Loading tasks...</p>
                                 </div>
                             </div>
                         </div>
@@ -216,34 +173,6 @@
                 </div>
             </div>
         </main>
-    </div>
-
-    <!-- Submit Task Modal -->
-    <div id="submit-task-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Submit New Task</h3>
-                <button class="modal-close-btn" onclick="closeSubmitTaskModal()">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-            </div>
-            <form class="task-form-modal" id="task-form-modal">
-                <div class="form-group">
-                    <label for="modal-query-id">Query ID</label>
-                    <input type="text" id="modal-query-id" name="query_id" placeholder="Enter query ID" required>
-                </div>
-                <div class="form-group">
-                    <label for="modal-timestamp">Timestamp</label>
-                    <input type="text" id="modal-timestamp" name="ts" placeholder="Enter timestamp" required>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="cancel-btn" onclick="closeSubmitTaskModal()">Cancel</button>
-                    <button type="submit" class="submit-btn">Submit Task</button>
-                </div>
-            </form>
-        </div>
     </div>
 
     <!-- Ethereum Events Modal -->
