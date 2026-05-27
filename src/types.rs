@@ -61,6 +61,11 @@ pub struct Args {
     /// Skip actual ZK proof creation and generate random proof bytes instead.
     #[clap(long, env, default_value = "false")]
     pub fake_proof: bool,
+
+    /// How many hours back from now the discovery loop should scan when
+    /// computing `range_start_sec`.  Defaults to 720 (30 days).
+    #[clap(long, env, default_value = "720")]
+    pub look_back_hours: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
