@@ -66,6 +66,11 @@ pub struct Args {
     /// computing `range_start_sec`.  Defaults to 720 (30 days).
     #[clap(long, env, default_value = "720")]
     pub look_back_hours: u32,
+
+    /// Cooldown in seconds between consecutive discovery loop iterations.
+    /// Defaults to 300 (5 minutes).
+    #[clap(long, env, default_value = "300")]
+    pub discovery_cooldown_secs: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

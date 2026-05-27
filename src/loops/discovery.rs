@@ -14,7 +14,7 @@ use eth_trie::{EthTrie, MemoryDB, Trie};
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tracing::{error, info};
 
@@ -561,6 +561,8 @@ pub fn start_discovery_loop(state: &InternalState) {
                 0,
                 format!("Iteration completed in {:?}", start.elapsed()),
             );
+
+            tokio::time::sleep(Duration::from_secs(local_config.discovery_cooldown_secs)).await;
         }
     });
 }
