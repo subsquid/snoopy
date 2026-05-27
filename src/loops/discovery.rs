@@ -544,11 +544,22 @@ pub fn start_discovery_loop(state: &InternalState) {
                             );
                         }
                         Err(err) => {
+                            let proof_data_summary = proof_data_list
+                                .iter()
+                                .map(|p| {
+                                    format!(
+                                        "(query_id={}, worker_id={})",
+                                        p.query.query_id, p.worker_id
+                                    )
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ");
                             push_error(
                                 &local_progress,
                                 2,
                                 format!(
-                                    "Failed to build ZK proof for query_id {query_id}: {err:?}"
+                                    "Failed to build ZK proof for query_id {query_id}: {err:?}. \
+                                     Proof data entries: [{proof_data_summary}]"
                                 ),
                             );
                         }
