@@ -13,7 +13,7 @@ pub use contracts::{
     CommitmentHolder, ProvingManager, filter_eligible_queries, get_assignment_id_map, post_proof,
 };
 pub use db::{
-    find_odds_in_siblings, get_signatures, get_siblings_queries,
+    find_odds_in_siblings, get_signatures,
     get_siblings_queries_by_investigate_row, get_suspicious_hashes, investigate_hash,
 };
 pub use mpt::{make_mpt_proof, populate_trie};

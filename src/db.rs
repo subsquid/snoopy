@@ -20,8 +20,8 @@ pub async fn get_suspicious_hashes(
             "select hash from (
             select
             hex(query_hash) as hash, 
-            count(distinct(chunk_id, from_block, to_block)) as A,
-            count(distinct(chunk_id, from_block, to_block, output_hash)) as B
+            count(distinct(chunk_id, from_block, to_block, last_block)) as A,
+            count(distinct(chunk_id, from_block, to_block, last_block, output_hash)) as B
             from mainnet.worker_query_logs where
             worker_timestamp > ? and
             worker_timestamp < ? and
@@ -48,13 +48,14 @@ pub async fn investigate_hash(
 ) -> Result<Vec<InvestigationRow>, anyhow::Error> {
     client
         .query(
-            "select hash, dataset, chunk_id, from_block, to_block, workers from (
+            "select hash, dataset, chunk_id, from_block, to_block, last_block, workers from (
             select 
                 hex(query_hash) as hash, 
                 dataset, 
                 chunk_id, 
                 from_block, 
-                to_block, 
+                to_block,
+                last_block,
                 count(distinct(worker_id)) as workers, 
                 count(distinct(output_hash)) as variants
             from mainnet.worker_query_logs 
@@ -63,7 +64,7 @@ pub async fn investigate_hash(
                 worker_timestamp < ? and
                 hex(query_hash) IN ? and
                 result == 'ok'
-            group by query_hash, dataset, chunk_id, from_block, to_block
+            group by query_hash, dataset, chunk_id, from_block, to_block, last_block
             ) where variants > 1",
         )
         .bind(range_start_sec)
@@ -94,6 +95,7 @@ pub async fn get_siblings_queries_by_investigate_row(
                 chunk_id = ? and
                 from_block = ? and 
                 to_block = ? and 
+                last_block = ? and
                 result = 'ok'
             group by worker_id, output_hash",
         )
@@ -104,6 +106,7 @@ pub async fn get_siblings_queries_by_investigate_row(
         .bind(row.chunk_id.clone())
         .bind(row.from_block)
         .bind(row.to_block)
+        .bind(row.last_block)
         .fetch_all::<QueryIdRow>()
         .await?;
 
@@ -211,62 +214,6 @@ pub async fn get_query_id_by_worker_and_ts(
     } else {
         Ok(None)
     }
-}
-
-// ---------------------------------------------------------------------------
-// Sibling-query lookup (used by the run-loop / manual task API)
-// ---------------------------------------------------------------------------
-
-pub async fn get_siblings_queries(
-    client: &Client,
-    query_id: &str,
-    ts: u32,
-    ts_tolerance: u32,
-    ts_search_range: u32,
-) -> Result<Vec<QueryExecutedRow>, anyhow::Error> {
-    info!(
-        "Params: {} {} {}",
-        query_id,
-        ts - ts_tolerance,
-        ts + ts_tolerance
-    );
-    let original_query = client
-        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where worker_timestamp > ? AND worker_timestamp < ? AND query_id = ?")
-        .bind(ts - ts_tolerance)
-        .bind(ts + ts_tolerance)
-        .bind(query_id)
-        .fetch_one::<QueryExecutedRow>()
-        .await?;
-    info!(
-        "Found query hash: {:?}",
-        original_query
-            .query_hash
-            .iter()
-            .map(|v| format!("{v:02X}"))
-            .collect::<Vec<_>>()
-            .join("")
-    );
-
-    let mut sibling_queries = client
-        .query("select query_id, client_id, worker_id, dataset_id, from_block, to_block, chunk_id, query, query_hash, result, output_hash, last_block, error_msg, client_signature, client_timestamp, request_id from worker_query_logs where worker_timestamp > ? AND worker_timestamp < ? AND hex(query_hash) = ? AND from_block = ? AND to_block = ? AND result = 'ok'")
-        .bind(ts - ts_search_range)
-        .bind(ts + ts_search_range)
-        .bind(original_query.query_hash.iter().map(|v| format!("{v:02X}")).collect::<Vec<_>>().join(""))
-        .bind(original_query.from_block)
-        .bind(original_query.to_block)
-        .fetch_all::<QueryExecutedRow>()
-        .await?;
-    info!("Found {:?} queries with same hash", sibling_queries.len());
-
-    sibling_queries.sort_by(|a, b| a.query_id.cmp(&b.query_id));
-    sibling_queries.dedup_by(|a, b| a.query_id == b.query_id);
-
-    info!(
-        "After filtering got {:?} unique queries",
-        sibling_queries.len()
-    );
-
-    Ok(sibling_queries)
 }
 
 // ---------------------------------------------------------------------------

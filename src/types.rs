@@ -114,6 +114,7 @@ pub struct InvestigationRow {
     pub chunk_id: String,
     pub from_block: Option<u64>,
     pub to_block: Option<u64>,
+    pub last_block: Option<u64>,
     pub workers: u64,
 }
 
