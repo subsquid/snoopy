@@ -385,7 +385,10 @@ pub fn start_discovery_loop(state: &InternalState) {
                     let mut used_keys: HashSet<String> = Default::default();
                     let mut proof_data_list: Vec<PrivateProofData> = Default::default();
 
-                    for proof_row in &eligible_queries {
+                    // cycle expects fradulent row be the first one, we skip in case there are more than one query for misbehaving PeerID with different hashes
+                    let eligible_queries_iter = eligible_queries.iter().skip_while(|row| row.query_id != query_id);
+
+                    for proof_row in eligible_queries_iter {
                         if proof_data_list.len() >= NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
                             break;
                         }
