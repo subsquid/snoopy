@@ -1,3 +1,37 @@
+// ---------------------------------------------------------------------------
+// Blockchain explorer helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the block-explorer transaction URL for the given network and tx hash.
+ * Supported blockchain_network values: "mainnet", "sepolia", "holesky",
+ * "goerli" (all Ethereum), and "arbitrum_one" (Arbitrum Mainnet).
+ *
+ * Returns '#' for any unrecognised network or malformed tx hash to avoid
+ * open-redirect and URL-injection risks.
+ */
+function explorerTxUrl(blockchainNetwork, txHash) {
+    // Validate tx hash — must be a 32-byte hex string prefixed with 0x.
+    if (!txHash || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
+        return '#';
+    }
+
+    const network = (blockchainNetwork || '').toLowerCase();
+    switch (network) {
+        case 'mainnet':
+            return `https://etherscan.io/tx/${txHash}`;
+        case 'arbitrum_one':
+            return `https://arbiscan.io/tx/${txHash}`;
+        case 'sepolia':
+        case 'holesky':
+        case 'goerli':
+            return `https://${network}.etherscan.io/tx/${txHash}`;
+        default:
+            // Unknown network — fail safe rather than constructing an arbitrary URL.
+            return '#';
+    }
+}
+
 // Wallet management class
 class WalletManager {
     constructor() {
@@ -434,13 +468,7 @@ class WalletManager {
         const getExplorerUrl = (txHash) => {
             const metadata = taskMonitor.metadata;
             if (!metadata) return '#';
-            
-            const network = metadata.blockchain_network.toLowerCase();
-            if (network === 'mainnet') {
-                return `https://etherscan.io/tx/${txHash}`;
-            } else {
-                return `https://${network}.etherscan.io/tx/${txHash}`;
-            }
+            return explorerTxUrl(metadata.blockchain_network, txHash);
         };
         
         return `
@@ -988,13 +1016,7 @@ class TaskMonitor {
         const getExplorerUrl = (txHash) => {
             const metadata = this.metadata;
             if (!metadata) return '#';
-            
-            const network = metadata.blockchain_network.toLowerCase();
-            if (network === 'mainnet') {
-                return `https://etherscan.io/tx/${txHash}`;
-            } else {
-                return `https://${network}.etherscan.io/tx/${txHash}`;
-            }
+            return explorerTxUrl(metadata.blockchain_network, txHash);
         };
         
         return `
@@ -1223,6 +1245,29 @@ class TaskMonitor {
         `;
     }
 
+    /**
+     * Return the wallet_addEthereumChain parameters for a known network, or
+     * null for networks that MetaMask already knows about (Ethereum mainnet and
+     * its testnets).
+     */
+    _addChainParams(blockchainNetwork, chainId) {
+        const chainIdHex = '0x' + chainId.toString(16);
+        switch ((blockchainNetwork || '').toLowerCase()) {
+            case 'arbitrum_one':
+                return {
+                    chainId: chainIdHex,
+                    chainName: 'Arbitrum One',
+                    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                    rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+                    blockExplorerUrls: ['https://arbiscan.io']
+                };
+            default:
+                // Ethereum mainnet and official testnets are built into MetaMask;
+                // wallet_addEthereumChain is not needed (and may be rejected) for them.
+                return null;
+        }
+    }
+
     async postProofFromStorage(rowId) {
         const proof = this._proofDataMap && this._proofDataMap[rowId];
         if (!proof) {
@@ -1253,7 +1298,8 @@ class TaskMonitor {
                 'mainnet': 1,
                 'sepolia': 11155111,
                 'holesky': 17000,
-                'goerli': 5
+                'goerli': 5,
+                'arbitrum_one': 42161
             };
 
             const expectedChainId = networkChainIds[metadata.blockchain_network.toLowerCase()];
@@ -1269,15 +1315,44 @@ class TaskMonitor {
                     await new Promise(resolve => setTimeout(resolve, 100));
                 } catch (switchError) {
                     if (switchError.code === 4902) {
-                        this.walletManager.showToast(`Please add the ${metadata.blockchain_network} network to MetaMask`, true);
+                        // Chain not yet in MetaMask — try to add it automatically.
+                        // This is especially important for Arbitrum One which is not
+                        // a built-in MetaMask network.
+                        const addChainParams = this._addChainParams(metadata.blockchain_network, expectedChainId);
+                        if (addChainParams) {
+                            try {
+                                await window.ethereum.request({
+                                    method: 'wallet_addEthereumChain',
+                                    params: [addChainParams]
+                                });
+                                // wallet_addEthereumChain also switches to the new chain;
+                                // wait a tick for the chainChanged event to fire.
+                                await new Promise(resolve => setTimeout(resolve, 100));
+                                // Continue with the transaction — do not return.
+                            } catch (addError) {
+                                this.walletManager.showToast(`Please add the ${metadata.blockchain_network} network to MetaMask`, true);
+                                if (statusEl) {
+                                    statusEl.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
+                                    statusEl.style.color = '#f59e0b';
+                                }
+                                return;
+                            }
+                        } else {
+                            this.walletManager.showToast(`Please add the ${metadata.blockchain_network} network to MetaMask`, true);
+                            if (statusEl) {
+                                statusEl.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
+                                statusEl.style.color = '#f59e0b';
+                            }
+                            return;
+                        }
                     } else {
                         this.walletManager.showToast(`Please switch to ${metadata.blockchain_network} network in MetaMask`, true);
+                        if (statusEl) {
+                            statusEl.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
+                            statusEl.style.color = '#f59e0b';
+                        }
+                        return;
                     }
-                    if (statusEl) {
-                        statusEl.textContent = `Wrong network: Expected ${metadata.blockchain_network}`;
-                        statusEl.style.color = '#f59e0b';
-                    }
-                    return;
                 }
             }
 
@@ -1348,10 +1423,14 @@ class TaskMonitor {
             }
 
             if (statusEl) {
-                const explorerUrl = metadata.blockchain_network.toLowerCase() === 'mainnet'
-                    ? `https://etherscan.io/tx/${receipt.transactionHash}`
-                    : `https://${metadata.blockchain_network}.etherscan.io/tx/${receipt.transactionHash}`;
-                statusEl.innerHTML = `<a href="${explorerUrl}" target="_blank" style="color: #10b981;">Tx confirmed!</a>`;
+                const explorerUrl = explorerTxUrl(metadata.blockchain_network, receipt.transactionHash);
+                const txLink = document.createElement('a');
+                txLink.href = explorerUrl;
+                txLink.target = '_blank';
+                txLink.rel = 'noopener noreferrer';
+                txLink.style.color = '#10b981';
+                txLink.textContent = 'Tx confirmed!';
+                statusEl.replaceChildren(txLink);
             }
 
             this.walletManager.showToast('Proof published to blockchain successfully!');
