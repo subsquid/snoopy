@@ -6,6 +6,12 @@ pub struct ProofStorage {
     pub proofs: HashMap<String, Proof>,
 }
 
+impl Default for ProofStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProofStorage {
     pub fn new() -> Self {
         ProofStorage {

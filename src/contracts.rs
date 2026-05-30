@@ -67,7 +67,7 @@ pub fn filter_eligible_queries(
     eligible_queries
 }
 
-pub fn put_query_id_first(queries: &mut Vec<QueryExecutedRow>, query_id: &str) {
+pub fn put_query_id_first(queries: &mut [QueryExecutedRow], query_id: &str) {
     queries.sort_by(|a, b| {
         if a.query_id == query_id {
             return Ordering::Less;

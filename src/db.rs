@@ -6,6 +6,9 @@ use clickhouse::Client;
 use std::collections::HashMap;
 use tracing::{debug, info};
 
+/// Map from worker_id to (signature_bytes, query_result_hash) for the relevant rows.
+type RelevantMap = HashMap<String, (Vec<u8>, Vec<u8>)>;
+
 // ---------------------------------------------------------------------------
 // Suspicious-hash discovery
 // ---------------------------------------------------------------------------
@@ -175,8 +178,8 @@ pub fn find_odds_in_siblings(
         (*value).push(sibling.query_id.clone());
     }
     let max_num = map
-        .iter()
-        .map(|(_, v)| v.len())
+        .values()
+        .map(|v| v.len())
         .max()
         .ok_or(anyhow!("Empty input for odds finder"))?;
     let res = map
@@ -195,7 +198,7 @@ pub async fn get_query_id_by_worker_and_ts(
     ts_ms: u64,
 ) -> Result<Option<String>, anyhow::Error> {
     // worker_timestamp in worker_query_logs is in seconds; the event timestamp is in milliseconds.
-    let ts_sec = (ts_ms as f64 / 1000.0) as f64;
+    let ts_sec = ts_ms as f64 / 1000.0;
     let mut cursor = client
         .query(
             "SELECT any(query_id) as query_id
@@ -205,7 +208,7 @@ pub async fn get_query_id_by_worker_and_ts(
              HAVING count() > 0
             ",
         )
-        .bind(format!("{:0.3}", ts_sec))
+        .bind(format!("{ts_sec:0.3}"))
         .bind(worker_id)
         .fetch::<QueryIdRow>()?;
 
@@ -285,7 +288,7 @@ pub fn filter_relevant(
     eligible_queries: &[QueryExecutedRow],
     plurality: &[u8],
     original_query_id: &str,
-) -> Result<HashMap<String, (Vec<u8>, Vec<u8>)>, anyhow::Error> {
+) -> Result<RelevantMap, anyhow::Error> {
     let query_map: HashMap<&str, &QueryExecutedRow> = eligible_queries
         .iter()
         .map(|q| (q.query_id.as_str(), q))
