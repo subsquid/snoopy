@@ -5,7 +5,7 @@ use alloy::hex;
 use anyhow::{anyhow, Context};
 use libp2p_identity::PeerId;
 use sp1_sdk::{
-    Elf, HashableKey, ProveRequest, Prover, ProvingKey, ProverClient, SP1Stdin,
+    Elf, HashableKey, LightProver, ProveRequest, Prover, ProvingKey, ProverClient, SP1Stdin,
     network::NetworkMode,
 };
 pub use sqd_messages::query_finished::Result as QueryFinishedResult;
@@ -51,8 +51,24 @@ pub async fn build_zk_proof(
         .with_context(|| format!("failed to open program at '{program_path}'"))?
         .read_to_end(&mut buf)?;
 
+    let elf = Elf::from(buf);
+
+    // Run the program locally first to verify the inputs are correct before
+    // submitting the expensive proving request to the network.
+    // LightProver is used here because it skips proving-artifact caching,
+    // making it significantly faster than CpuProver for execution-only use.
+    info!("Running local execution dry-run to validate proof inputs");
+    let light_prover = LightProver::new().await;
+    let mut stdin_dry = SP1Stdin::new();
+    stdin_dry.write(&proofs);
+    light_prover
+        .execute(elf.clone(), stdin_dry)
+        .await
+        .context("local execution dry-run failed – inputs are invalid, aborting proof request")?;
+    info!("Local execution dry-run succeeded");
+
     let pk = prover_client
-        .setup(Elf::from(buf))
+        .setup(elf)
         .await
         .context("failed to set up proving key")?;
 
