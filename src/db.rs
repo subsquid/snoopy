@@ -237,25 +237,43 @@ pub async fn get_signatures(
     Ok(signatures)
 }
 
-pub fn find_plurality(signatures: &[SignatureRow]) -> Result<Vec<u8>, anyhow::Error> {
-    let mut result_count: HashMap<Vec<u8>, usize> = HashMap::new();
-    for row in signatures {
-        *result_count.entry(row.result_hash.clone()).or_default() += 1;
+pub fn find_plurality(
+    signatures: &[SignatureRow],
+    eligible_queries: &[QueryExecutedRow],
+) -> Result<Vec<u8>, anyhow::Error> {
+    let query_map: HashMap<&str, &QueryExecutedRow> = eligible_queries
+        .iter()
+        .map(|q| (q.query_id.as_str(), q))
+        .collect();
+
+    let mut output_hash_count: HashMap<Vec<u8>, usize> = HashMap::new();
+    for sig in signatures {
+        match query_map.get(sig.query_id.as_str()) {
+            Some(q) => {
+                *output_hash_count.entry(q.output_hash.clone()).or_default() += 1;
+            }
+            None => {
+                tracing::error!(
+                    query_id = %sig.query_id,
+                    "find_plurality: no matching QueryExecutedRow for signature, skipping"
+                );
+            }
+        }
     }
 
-    let plurality = result_count
+    let plurality = output_hash_count
         .iter()
         .max_by_key(|(_, v)| *v)
         .map(|(k, _)| k.clone())
         .ok_or(anyhow!("Plurality not found"))?;
     info!(
-        "Most frequent hash: {:?} ({:?}/{:?})",
+        "Most frequent output_hash: {:?} ({:?}/{:?})",
         plurality
             .iter()
             .map(|v| format!("{v:02X}"))
             .collect::<Vec<_>>()
             .join(""),
-        result_count.get(&plurality),
+        output_hash_count.get(&plurality),
         signatures.len()
     );
 
@@ -264,12 +282,32 @@ pub fn find_plurality(signatures: &[SignatureRow]) -> Result<Vec<u8>, anyhow::Er
 
 pub fn filter_relevant(
     signatures: Vec<SignatureRow>,
+    eligible_queries: &[QueryExecutedRow],
     plurality: &[u8],
     original_query_id: &str,
 ) -> Result<HashMap<String, (Vec<u8>, Vec<u8>)>, anyhow::Error> {
+    let query_map: HashMap<&str, &QueryExecutedRow> = eligible_queries
+        .iter()
+        .map(|q| (q.query_id.as_str(), q))
+        .collect();
+
     let res = signatures
         .into_iter()
-        .filter(|row| row.result_hash == plurality || row.query_id == original_query_id)
+        .filter(|row| {
+            if row.query_id == original_query_id {
+                return true;
+            }
+            match query_map.get(row.query_id.as_str()) {
+                Some(q) => q.output_hash == plurality,
+                None => {
+                    tracing::error!(
+                        query_id = %row.query_id,
+                        "filter_relevant: no matching QueryExecutedRow for signature, skipping"
+                    );
+                    false
+                }
+            }
+        })
         .map(|row| (row.query_id, (row.result_hash, row.worker_signature)))
         .collect::<HashMap<String, (Vec<u8>, Vec<u8>)>>();
     Ok(res)

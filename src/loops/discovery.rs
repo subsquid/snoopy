@@ -362,7 +362,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                         }
                     };
 
-                    let plurality = match find_plurality(&signature_rows) {
+                    let plurality = match find_plurality(&signature_rows, &eligible_queries) {
                         Ok(p) => p,
                         Err(err) => {
                             push_error(
@@ -376,7 +376,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                         }
                     };
 
-                    let signatures = match filter_relevant(signature_rows, &plurality, &query_id) {
+                    let signatures = match filter_relevant(signature_rows, &eligible_queries, &plurality, &query_id) {
                         Ok(sigs) => sigs,
                         Err(err) => {
                             push_error(
