@@ -4,7 +4,7 @@ use crate::{
     state::InternalState,
     types::{DiscoveryLoopProgress, Metadata, ProofEntry},
 };
-use rocket::{State, get, serde::json::Json, fs::NamedFile};
+use rocket::{State, fs::NamedFile, get, serde::json::Json};
 
 // ---------------------------------------------------------------------------
 // Route handlers
@@ -55,9 +55,7 @@ pub async fn app_js() -> NamedFile {
 }
 
 #[get("/discovery-progress")]
-pub async fn get_discovery_progress(
-    state: &State<InternalState>,
-) -> Json<DiscoveryLoopProgress> {
+pub async fn get_discovery_progress(state: &State<InternalState>) -> Json<DiscoveryLoopProgress> {
     let progress = state.discovery_progress.lock().unwrap();
     Json(progress.clone())
 }

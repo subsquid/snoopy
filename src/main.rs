@@ -3,14 +3,9 @@ extern crate rocket;
 
 use clap::Parser;
 use snoopy::{
-    loops::{
-        discovery::start_discovery_loop,
-        fetch::start_fetch_loop,
-    },
+    loops::{discovery::start_discovery_loop, fetch::start_fetch_loop},
     proof_storage::ProofStorage,
-    routes::{
-        app_js, get_all_proofs, get_discovery_progress, get_metadata, index, styles,
-    },
+    routes::{app_js, get_all_proofs, get_discovery_progress, get_metadata, index, styles},
     state::InternalState,
     types::{Args, DiscoveryLoopProgress},
 };

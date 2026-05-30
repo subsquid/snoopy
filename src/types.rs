@@ -213,11 +213,7 @@ pub enum DiscoveryEvent {
         ts: u64,
     },
     /// Error / setback; corresponds to `tracing::error!` calls.
-    Error {
-        level: u8,
-        message: String,
-        ts: u64,
-    },
+    Error { level: u8, message: String, ts: u64 },
 }
 
 /// Accumulated state of the discovery loop that can be queried via HTTP.

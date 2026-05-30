@@ -1,11 +1,7 @@
 //! Background loop that subscribes to on-chain `FraudFound` events and marks
 //! the corresponding proofs as published in the shared proof storage.
 
-use crate::{
-    contracts::ProvingManager,
-    db::get_query_id_by_worker_and_ts,
-    state::InternalState,
-};
+use crate::{contracts::ProvingManager, db::get_query_id_by_worker_and_ts, state::InternalState};
 use clickhouse::Client;
 use std::{sync::Arc, time::Duration};
 use tokio::time::sleep;
@@ -145,9 +141,7 @@ pub fn start_fetch_loop(state: &InternalState) {
                         );
 
                         let query_id = match get_query_id_by_worker_and_ts(
-                            &client,
-                            &worker_id,
-                            ts_ms,
+                            &client, &worker_id, ts_ms,
                         )
                         .await
                         {

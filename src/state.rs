@@ -1,4 +1,7 @@
-use crate::{proof_storage::ProofStorage, types::{Args, DiscoveryLoopProgress}};
+use crate::{
+    proof_storage::ProofStorage,
+    types::{Args, DiscoveryLoopProgress},
+};
 use std::sync::{Arc, Mutex};
 
 /// Rocket-managed shared state.

@@ -2,8 +2,12 @@
 //! and creates ZK fraud proofs automatically.
 
 use crate::{
-    contracts::{filter_eligible_queries, put_query_id_first, get_assignment_id_map},
-    db::{find_odds_in_siblings, filter_relevant, find_plurality, get_siblings_queries_by_investigate_row, get_suspicious_hashes, get_signatures, investigate_hash},
+    contracts::{filter_eligible_queries, get_assignment_id_map, put_query_id_first},
+    db::{
+        filter_relevant, find_odds_in_siblings, find_plurality,
+        get_siblings_queries_by_investigate_row, get_signatures, get_suspicious_hashes,
+        investigate_hash,
+    },
     mpt::{make_mpt_proof, populate_trie},
     state::InternalState,
     types::{DiscoveryEvent, DiscoveryLoopProgress, PrivateProofData},
@@ -84,11 +88,7 @@ fn push_stage(
 // Helper: push an Info event and also emit a tracing log
 // ---------------------------------------------------------------------------
 
-fn push_info(
-    progress: &Arc<Mutex<DiscoveryLoopProgress>>,
-    level: u8,
-    message: impl Into<String>,
-) {
+fn push_info(progress: &Arc<Mutex<DiscoveryLoopProgress>>, level: u8, message: impl Into<String>) {
     let msg = message.into();
     info!("{msg}");
     let mut p = progress.lock().unwrap();
@@ -103,11 +103,7 @@ fn push_info(
 // Helper: push an Error event and also emit a tracing log
 // ---------------------------------------------------------------------------
 
-fn push_error(
-    progress: &Arc<Mutex<DiscoveryLoopProgress>>,
-    level: u8,
-    message: impl Into<String>,
-) {
+fn push_error(progress: &Arc<Mutex<DiscoveryLoopProgress>>, level: u8, message: impl Into<String>) {
     let msg = message.into();
     error!("{msg}");
     let mut p = progress.lock().unwrap();
@@ -155,14 +151,18 @@ pub fn start_discovery_loop(state: &InternalState) {
                 .with_option("max_execution_time", "240");
 
             let range_end_sec = now_secs() as u32;
-            let range_start_sec =
-                range_end_sec - local_config.look_back_hours as u32 * 3600;
+            let range_start_sec = range_end_sec - local_config.look_back_hours as u32 * 3600;
             let start = Instant::now();
 
             // ----------------------------------------------------------------
             // Stage 1: Fetch suspicious hashes
             // ----------------------------------------------------------------
-            push_stage(&local_progress, STAGE_FETCH_SUSPICIOUS, 0, "Fetching suspicious hashes");
+            push_stage(
+                &local_progress,
+                STAGE_FETCH_SUSPICIOUS,
+                0,
+                "Fetching suspicious hashes",
+            );
             let suspicious_hashes =
                 match get_suspicious_hashes(&client, range_start_sec, range_end_sec).await {
                     Ok(hashes) => hashes,
@@ -184,7 +184,12 @@ pub fn start_discovery_loop(state: &InternalState) {
             // ----------------------------------------------------------------
             // Stage 2: Investigate suspicious hashes
             // ----------------------------------------------------------------
-            push_stage(&local_progress, STAGE_INVESTIGATE, 0, "Investigating suspicious hashes");
+            push_stage(
+                &local_progress,
+                STAGE_INVESTIGATE,
+                0,
+                "Investigating suspicious hashes",
+            );
             let res =
                 match investigate_hash(&client, range_start_sec, range_end_sec, suspicious_hashes)
                     .await
@@ -209,11 +214,7 @@ pub fn start_discovery_loop(state: &InternalState) {
             // Per investigation row
             // ----------------------------------------------------------------
             for row in &res {
-                push_info(
-                    &local_progress,
-                    0,
-                    format!("Investigating {}", row.hash),
-                );
+                push_info(&local_progress, 0, format!("Investigating {}", row.hash));
                 // Stage 3: Fetch siblings --------------------------------
                 push_stage(
                     &local_progress,
@@ -270,11 +271,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                         continue;
                     }
                 };
-                push_info(
-                    &local_progress,
-                    1,
-                    format!("Odd query id(s): {odds:?}"),
-                );
+                push_info(&local_progress, 1, format!("Odd query id(s): {odds:?}"));
 
                 // --------------------------------------------------------
                 // Per oddity (query_id)
@@ -292,9 +289,7 @@ pub fn start_discovery_loop(state: &InternalState) {
                             push_info(
                                 &local_progress,
                                 2,
-                                format!(
-                                    "Proof already exists for query_id {query_id}, skipping"
-                                ),
+                                format!("Proof already exists for query_id {query_id}, skipping"),
                             );
                             continue;
                         }
@@ -368,15 +363,18 @@ pub fn start_discovery_loop(state: &InternalState) {
                             push_error(
                                 &local_progress,
                                 2,
-                                format!(
-                                    "query_id {query_id}: got {err:?} while finding plurality"
-                                ),
+                                format!("query_id {query_id}: got {err:?} while finding plurality"),
                             );
                             continue;
                         }
                     };
 
-                    let signatures = match filter_relevant(signature_rows, &eligible_queries, &plurality, &query_id) {
+                    let signatures = match filter_relevant(
+                        signature_rows,
+                        &eligible_queries,
+                        &plurality,
+                        &query_id,
+                    ) {
                         Ok(sigs) => sigs,
                         Err(err) => {
                             push_error(
@@ -418,7 +416,9 @@ pub fn start_discovery_loop(state: &InternalState) {
                     let mut proof_data_list: Vec<PrivateProofData> = Default::default();
 
                     // cycle expects fradulent row be the first one, we skip in case there are more than one query for misbehaving PeerID with different hashes
-                    let eligible_queries_iter = eligible_queries.iter().skip_while(|row| row.query_id != query_id);
+                    let eligible_queries_iter = eligible_queries
+                        .iter()
+                        .skip_while(|row| row.query_id != query_id);
 
                     for proof_row in eligible_queries_iter {
                         if proof_data_list.len() >= NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
@@ -431,18 +431,24 @@ pub fn start_discovery_loop(state: &InternalState) {
                             match signatures.get(&proof_row.query_id) {
                                 Some(res) => res,
                                 None => {
-                                    error!("Can not find signature for {:?}, skipping", proof_row.query_id);
-                                    continue
-                                },
+                                    error!(
+                                        "Can not find signature for {:?}, skipping",
+                                        proof_row.query_id
+                                    );
+                                    continue;
+                                }
                             };
                         let db = Arc::new(MemoryDB::new(true));
                         let mut trie = EthTrie::new(db);
                         let assignment_id = match assignment_id_map.get(&proof_row.query_id) {
                             Some(v) => v,
                             None => {
-                                error!("Can not get assignment for {:?}, skipping", proof_row.query_id);
-                                continue
-                            },
+                                error!(
+                                    "Can not get assignment for {:?}, skipping",
+                                    proof_row.query_id
+                                );
+                                continue;
+                            }
                         };
                         let network = local_config.network.clone();
                         let assignment_url = format!(
