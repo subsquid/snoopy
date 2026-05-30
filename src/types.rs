@@ -86,6 +86,14 @@ pub struct Args {
     /// Defaults to 300 (5 minutes).
     #[clap(long, env, default_value = "300")]
     pub discovery_cooldown_secs: u64,
+
+    /// GraphQL endpoint URL for the ZK feed squid.
+    #[clap(
+        long,
+        env,
+        default_value = "https://fa7e5d08-286a-4511-9598-d4aa8ea9594b.squids.live/zk-feed-2@v1/api/graphql"
+    )]
+    pub graphql_url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -96,6 +104,7 @@ pub struct Metadata {
     pub commiter_address: String,
     pub manager_address: String,
     pub config_name: String,
+    pub graphql_url: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -36,6 +36,7 @@ pub async fn get_metadata(state: &State<InternalState>) -> Json<Metadata> {
         commiter_address: config.commiter_address.to_string(),
         manager_address: config.manager_address.to_string(),
         config_name: config.config_name.clone(),
+        graphql_url: config.graphql_url.clone(),
     })
 }
 

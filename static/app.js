@@ -1455,8 +1455,9 @@ class TaskMonitor {
 
     async loadFraudData() {
         try {
-            const graphqlEndpoint = 'https://fa7e5d08-286a-4511-9598-d4aa8ea9594b.squids.live/zk-feed@v1/api/graphql';
-            
+            const metadata = this.metadata || await this.loadMetadata();
+            const graphqlEndpoint = metadata.graphql_url;
+
             const query = `
                 query {
                     contractEventFraudFounds(limit: 100) {
