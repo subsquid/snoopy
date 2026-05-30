@@ -575,7 +575,14 @@ pub fn start_discovery_loop(state: &InternalState) {
                             (0..64).map(|_x: u8| rand::random::<u8>()).collect();
                         Ok((proof_bytes, public_values))
                     } else {
-                        build_zk_proof(&proof_data_list, &program_path).await
+                        build_zk_proof(
+                            &proof_data_list,
+                            &program_path,
+                            &local_config.zk_network_mode,
+                            local_config.zk_private_key.as_deref(),
+                            local_config.zk_rpc_url.as_deref(),
+                        )
+                        .await
                     };
 
                     match proof_result {

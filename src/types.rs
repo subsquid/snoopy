@@ -62,6 +62,21 @@ pub struct Args {
     #[clap(long, env, default_value = "false")]
     pub fake_proof: bool,
 
+    /// ZK proving network mode. One of: mainnet, reserved.
+    /// Defaults to reserved.
+    #[clap(long, env, default_value = "reserved")]
+    pub zk_network_mode: String,
+
+    /// Private key for the ZK proving network requester account.
+    /// If not set, falls back to the NETWORK_PRIVATE_KEY environment variable.
+    #[clap(long, env)]
+    pub zk_private_key: Option<String>,
+
+    /// RPC URL for a custom ZK proving network endpoint.
+    /// If not set, the default URL for the selected network mode is used.
+    #[clap(long, env)]
+    pub zk_rpc_url: Option<String>,
+
     /// How many hours back from now the discovery loop should scan when
     /// computing `range_start_sec`.  Defaults to 720 (30 days).
     #[clap(long, env, default_value = "720")]

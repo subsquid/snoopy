@@ -2,31 +2,69 @@
 
 use crate::types::{PrivateProofData, QueryExecutedRow};
 use alloy::hex;
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use libp2p_identity::PeerId;
-use sp1_sdk::{HashableKey, Prover, ProverClient, SP1Stdin};
+use sp1_sdk::{
+    Elf, HashableKey, ProveRequest, Prover, ProvingKey, ProverClient, SP1Stdin,
+    network::NetworkMode,
+};
 pub use sqd_messages::query_finished::Result as QueryFinishedResult;
 use sqd_messages::{Query, QueryFinished, QueryOkSummary, Range};
 use std::{fs::File, io::Read, str::FromStr};
 use tracing::info;
 
+/// Parse a `zk_network_mode` string into a [`NetworkMode`].
+fn parse_network_mode(mode: &str) -> Result<NetworkMode, anyhow::Error> {
+    match mode.to_lowercase().as_str() {
+        "mainnet" => Ok(NetworkMode::Mainnet),
+        "reserved" => Ok(NetworkMode::Reserved),
+        other => Err(anyhow!(
+            "Unknown zk_network_mode '{}'. Valid values: mainnet, reserved",
+            other
+        )),
+    }
+}
+
 pub async fn build_zk_proof(
     proofs: &Vec<PrivateProofData>,
     program_path: &str,
+    zk_network_mode: &str,
+    zk_private_key: Option<&str>,
+    zk_rpc_url: Option<&str>,
 ) -> Result<(Vec<u8>, Vec<u8>), anyhow::Error> {
-    let buf = &mut Default::default();
-    let prover_client = ProverClient::builder().network().build();
-    File::open(program_path).unwrap().read_to_end(buf)?;
-    let (pk, vk) = prover_client.setup(buf);
+    let network_mode = parse_network_mode(zk_network_mode)?;
+
+    let mut builder = ProverClient::builder().network_for(network_mode);
+
+    if let Some(key) = zk_private_key {
+        builder = builder.private_key(key);
+    }
+
+    if let Some(url) = zk_rpc_url {
+        builder = builder.rpc_url(url);
+    }
+
+    let prover_client = builder.build().await;
+
+    let mut buf: Vec<u8> = Default::default();
+    File::open(program_path)
+        .with_context(|| format!("failed to open program at '{program_path}'"))?
+        .read_to_end(&mut buf)?;
+
+    let pk = prover_client
+        .setup(Elf::from(buf))
+        .await
+        .context("failed to set up proving key")?;
+
     let mut stdin = SP1Stdin::new();
     stdin.write(&proofs);
+
     let proof = prover_client
-        .prove(&pk, &stdin)
+        .prove(&pk, stdin)
         .groth16()
-        .run_async()
         .await?;
 
-    info!("Verification Key: {}", vk.bytes32().to_string());
+    info!("Verification Key: {}", pk.verifying_key().bytes32());
     info!(
         "Public Values: {}",
         format!("0x{}", hex::encode(proof.public_values.as_slice()))

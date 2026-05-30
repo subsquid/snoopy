@@ -25,7 +25,7 @@ sqd-messages = { git = "https://github.com/subsquid/sqd-network.git", rev = "ef9
 rlp = "0.6.1"
 flate2 = "1.1.5"
 libp2p-identity = { version = "0.2.9", features = ["ed25519", "rand"] }
-sp1-sdk = { version = "5.2.2", features = ["network"] }
+sp1-sdk = { version = "6.2.2", features = ["network"] }
 rustls = "0.23.34"
 rocket = { version = "0.5.1", features = ["json"] }
 uuid = { version = "1.18.1", features = ["v4"] }
