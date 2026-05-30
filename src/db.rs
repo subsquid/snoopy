@@ -225,8 +225,7 @@ pub async fn get_signatures(
     range_start_sec: u32,
     range_end_sec: u32,
     eligible_queries: &[QueryExecutedRow],
-    original_query_id: &str,
-) -> Result<HashMap<String, (Vec<u8>, Vec<u8>)>, anyhow::Error> {
+) -> Result<Vec<SignatureRow>, anyhow::Error> {
     let signatures = client
         .query("select query_id, worker_signature, result_hash from portal_logs where collector_timestamp > ? AND collector_timestamp < ? AND query_id IN ?")
         .bind(range_start_sec)
@@ -235,15 +234,19 @@ pub async fn get_signatures(
         .fetch_all::<SignatureRow>()
         .await?;
     debug!("Signature rows: {signatures:?}");
+    Ok(signatures)
+}
+
+pub fn find_plurality(signatures: &[SignatureRow]) -> Result<Vec<u8>, anyhow::Error> {
     let mut result_count: HashMap<Vec<u8>, usize> = HashMap::new();
-    for row in &signatures {
+    for row in signatures {
         *result_count.entry(row.result_hash.clone()).or_default() += 1;
     }
 
     let plurality = result_count
         .iter()
         .max_by_key(|(_, v)| *v)
-        .map(|(k, _)| k)
+        .map(|(k, _)| k.clone())
         .ok_or(anyhow!("Plurality not found"))?;
     info!(
         "Most frequent hash: {:?} ({:?}/{:?})",
@@ -252,13 +255,22 @@ pub async fn get_signatures(
             .map(|v| format!("{v:02X}"))
             .collect::<Vec<_>>()
             .join(""),
-        result_count.get(plurality),
+        result_count.get(&plurality),
         signatures.len()
     );
 
-    Ok(signatures
+    Ok(plurality)
+}
+
+pub fn filter_relevant(
+    signatures: Vec<SignatureRow>,
+    plurality: &[u8],
+    original_query_id: &str,
+) -> Result<HashMap<String, (Vec<u8>, Vec<u8>)>, anyhow::Error> {
+    let res = signatures
         .into_iter()
-        .filter(|row| row.result_hash == *plurality || row.query_id == original_query_id)
+        .filter(|row| row.result_hash == plurality || row.query_id == original_query_id)
         .map(|row| (row.query_id, (row.result_hash, row.worker_signature)))
-        .collect::<HashMap<String, (Vec<u8>, Vec<u8>)>>())
+        .collect::<HashMap<String, (Vec<u8>, Vec<u8>)>>();
+    Ok(res)
 }

@@ -1,5 +1,5 @@
 //! On-chain contract interactions: ABI bindings, `get_assignment_id_map`,
-//! `filter_eligible_queries`, and `post_proof`.
+//! `filter_eligible_queries`, `put_query_id_first`, and `post_proof`.
 
 use crate::types::QueryExecutedRow;
 use alloy::{
@@ -57,15 +57,18 @@ pub async fn get_assignment_id_map(
 pub fn filter_eligible_queries(
     sibling_queries: &[QueryExecutedRow],
     assignment_id_map: &HashMap<String, String>,
-    query_id: &str,
 ) -> Vec<QueryExecutedRow> {
-    let mut eligible_queries = sibling_queries
+    let eligible_queries = sibling_queries
         .iter()
         .filter(|row| assignment_id_map.contains_key(&row.query_id))
         .cloned()
         .collect::<Vec<_>>();
     info!("Found {:?} eligible queries", eligible_queries.len());
-    eligible_queries.sort_by(|a, b| {
+    eligible_queries
+}
+
+pub fn put_query_id_first(queries: &mut Vec<QueryExecutedRow>, query_id: &str) {
+    queries.sort_by(|a, b| {
         if a.query_id == query_id {
             return Ordering::Less;
         }
@@ -74,7 +77,6 @@ pub fn filter_eligible_queries(
         }
         b.client_timestamp.cmp(&a.client_timestamp)
     });
-    eligible_queries
 }
 
 pub async fn post_proof(

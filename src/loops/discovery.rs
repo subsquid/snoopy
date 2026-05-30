@@ -2,8 +2,8 @@
 //! and creates ZK fraud proofs automatically.
 
 use crate::{
-    contracts::{filter_eligible_queries, get_assignment_id_map},
-    db::{find_odds_in_siblings, get_siblings_queries_by_investigate_row, get_suspicious_hashes, get_signatures, investigate_hash},
+    contracts::{filter_eligible_queries, put_query_id_first, get_assignment_id_map},
+    db::{find_odds_in_siblings, filter_relevant, find_plurality, get_siblings_queries_by_investigate_row, get_suspicious_hashes, get_signatures, investigate_hash},
     mpt::{make_mpt_proof, populate_trie},
     state::InternalState,
     types::{DiscoveryEvent, DiscoveryLoopProgress, PrivateProofData},
@@ -248,6 +248,10 @@ pub fn start_discovery_loop(state: &InternalState) {
                     format!("Hash {:?}: found {} sibling(s)", row.hash, siblings.len()),
                 );
 
+                if siblings.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
+                    continue;
+                }
+
                 // Stage 4: Find oddities ---------------------------------
                 push_stage(
                     &local_progress,
@@ -318,8 +322,9 @@ pub fn start_discovery_loop(state: &InternalState) {
                             }
                         };
 
-                    let eligible_queries =
-                        filter_eligible_queries(&siblings, &assignment_id_map, &query_id);
+                    let mut eligible_queries =
+                        filter_eligible_queries(&siblings, &assignment_id_map);
+                    put_query_id_first(&mut eligible_queries, &query_id);
                     push_info(
                         &local_progress,
                         2,
@@ -336,22 +341,49 @@ pub fn start_discovery_loop(state: &InternalState) {
                         2,
                         format!("Fetching signatures for query_id {query_id}"),
                     );
-                    let signatures = match get_signatures(
+                    let signature_rows = match get_signatures(
                         &client,
                         range_start_sec,
                         range_end_sec,
                         &eligible_queries,
-                        &query_id,
                     )
                     .await
                     {
-                        Ok(signatures) => signatures,
+                        Ok(rows) => rows,
                         Err(err) => {
                             push_error(
                                 &local_progress,
                                 2,
                                 format!(
                                     "query_id {query_id}: got {err:?} while getting signatures"
+                                ),
+                            );
+                            continue;
+                        }
+                    };
+
+                    let plurality = match find_plurality(&signature_rows) {
+                        Ok(p) => p,
+                        Err(err) => {
+                            push_error(
+                                &local_progress,
+                                2,
+                                format!(
+                                    "query_id {query_id}: got {err:?} while finding plurality"
+                                ),
+                            );
+                            continue;
+                        }
+                    };
+
+                    let signatures = match filter_relevant(signature_rows, &plurality, &query_id) {
+                        Ok(sigs) => sigs,
+                        Err(err) => {
+                            push_error(
+                                &local_progress,
+                                2,
+                                format!(
+                                    "query_id {query_id}: got {err:?} while filtering relevant signatures"
                                 ),
                             );
                             continue;
@@ -398,13 +430,19 @@ pub fn start_discovery_loop(state: &InternalState) {
                         let (result_hash, worker_signature) =
                             match signatures.get(&proof_row.query_id) {
                                 Some(res) => res,
-                                None => continue,
+                                None => {
+                                    error!("Can not find signature for {:?}, skipping", proof_row.query_id);
+                                    continue
+                                },
                             };
                         let db = Arc::new(MemoryDB::new(true));
                         let mut trie = EthTrie::new(db);
                         let assignment_id = match assignment_id_map.get(&proof_row.query_id) {
                             Some(v) => v,
-                            None => continue,
+                            None => {
+                                error!("Can not get assignment for {:?}, skipping", proof_row.query_id);
+                                continue
+                            },
                         };
                         let network = local_config.network.clone();
                         let assignment_url = format!(
