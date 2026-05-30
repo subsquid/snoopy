@@ -52,7 +52,7 @@ pub struct Args {
     )]
     pub manager_address: Address,
 
-    #[clap(long, env, default_value = "std-long")]
+    #[clap(long, env, default_value = "std-long-v6")]
     pub config_name: String,
 
     #[clap(long, env, default_value = "prove-query-result-program")]
