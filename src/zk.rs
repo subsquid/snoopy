@@ -77,6 +77,7 @@ pub async fn build_zk_proof(
 
     let proof = prover_client
         .prove(&pk, stdin)
+        .strategy(sp1_sdk::network::FulfillmentStrategy::Auction)
         .groth16()
         .await?;
 

@@ -40,7 +40,6 @@ class WalletManager {
         this.signer = null;
         this.account = null;
         this.isConnected = false;
-        this.transactionHistory = []; // Track transactions to manager_address
         this.init();
     }
 
@@ -125,10 +124,6 @@ class WalletManager {
             this.updateUI();
             this.showToast('Wallet connected successfully!');
             
-            // Show transactions section and load existing transactions
-            this.showTransactionsSection();
-            await this.loadExistingTransactions();
-            
             return true;
         } catch (error) {
             console.error('Error connecting wallet:', error);
@@ -144,7 +139,6 @@ class WalletManager {
         this.account = null;
         this.isConnected = false;
         this.updateUI();
-        this.hideTransactionsSection();
         this.showToast('Wallet disconnected');
     }
 
@@ -189,366 +183,6 @@ class WalletManager {
         }, 3000);
     }
 
-    // Transaction tracking methods
-    showTransactionsSection() {
-        const section = document.getElementById('transactions-section');
-        const tabBtn = document.getElementById('transactions-tab-btn');
-        
-        if (section) {
-            section.style.display = 'block';
-        }
-        
-        if (tabBtn) {
-            tabBtn.style.display = 'flex';
-        }
-    }
-
-    hideTransactionsSection() {
-        const section = document.getElementById('transactions-section');
-        const tabBtn = document.getElementById('transactions-tab-btn');
-        
-        if (section) {
-            section.style.display = 'none';
-        }
-        
-        if (tabBtn) {
-            tabBtn.style.display = 'none';
-        }
-        
-        // If we're currently on the transactions tab, switch to proof-storage
-        const currentTab = document.querySelector('.tab-pane.active');
-        if (currentTab && currentTab.id === 'my-transactions-tab') {
-            switchTab('proof-storage');
-        }
-    }
-
-    async loadExistingTransactions() {
-        try {
-            // Load metadata to get manager_address
-            const metadata = await taskMonitor.loadMetadata();
-            if (!metadata || !metadata.manager_address) {
-                console.warn('Manager address not found in metadata');
-                return;
-            }
-
-            console.log('Loading transactions for wallet:', this.account);
-            console.log('Manager address:', metadata.manager_address);
-
-            // Convert wss:// to https:// if needed
-            let httpRpcUrl = metadata.rpc_url;
-            if (httpRpcUrl.startsWith('wss://')) {
-                httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
-            }
-
-            // Get the latest block number to limit our search
-            const latestBlockResponse = await fetch(httpRpcUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    method: 'eth_blockNumber',
-                    params: [],
-                    id: 1
-                })
-            });
-
-            const latestBlockResult = await latestBlockResponse.json();
-            const latestBlock = latestBlockResult.result ? parseInt(latestBlockResult.result, 16) : 0;
-            
-            // Search in the last 10,000 blocks to avoid hitting limits
-            const fromBlock = Math.max(0, latestBlock - 10000);
-            const fromBlockHex = '0x' + fromBlock.toString(16);
-            const toBlock = 'latest';
-
-            console.log('Searching blocks:', fromBlock, 'to', toBlock);
-
-            // Query for all transaction logs from the manager contract
-            const logParams = {
-                fromBlock: fromBlockHex,
-                toBlock: toBlock,
-                address: metadata.manager_address
-            };
-
-            // Query for past logs
-            const response = await fetch(httpRpcUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    method: 'eth_getLogs',
-                    params: [logParams],
-                    id: 1
-                })
-            });
-
-            const result = await response.json();
-            if (result.error) {
-                console.warn('Error fetching existing transactions:', result.error.message);
-                return;
-            }
-
-            const logs = result.result || [];
-            console.log('Found', logs.length, 'total logs');
-            
-            // For each log, get the full transaction and check if it's TO the manager contract
-            const ourTransactions = [];
-            
-            for (const log of logs) {
-                try {
-                    // Get the full transaction details
-                    const txResponse = await fetch(httpRpcUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0',
-                            method: 'eth_getTransactionByHash',
-                            params: [log.transactionHash],
-                            id: 1
-                        })
-                    });
-
-                    const txResult = await txResponse.json();
-                    if (txResult.result && txResult.result.to) {
-                        const txTo = txResult.result.to.toLowerCase();
-                        const managerAddress = metadata.manager_address.toLowerCase();
-                        const txFrom = txResult.result.from ? txResult.result.from.toLowerCase() : '';
-                        const ourAccount = this.account.toLowerCase();
-                        
-                        // Check if this transaction is TO the manager contract AND from our wallet
-                        if (txTo === managerAddress && txFrom === ourAccount) {
-                            ourTransactions.push({
-                                hash: log.transactionHash,
-                                from: txResult.result.from,
-                                to: txResult.result.to,
-                                blockNumber: log.blockNumber ? parseInt(log.blockNumber, 16) : null,
-                                timestamp: null, // Will be fetched separately if needed
-                                status: 'confirmed'
-                            });
-                        }
-                    }
-                } catch (txError) {
-                    console.warn('Error fetching transaction:', log.transactionHash, txError);
-                    continue;
-                }
-            }
-
-            console.log('Found', ourTransactions.length, 'transactions from our wallet to manager contract');
-
-            // Add to transaction history (avoid duplicates)
-            for (const tx of ourTransactions) {
-                if (!this.transactionHistory.find(t => t.hash === tx.hash)) {
-                    this.transactionHistory.push(tx);
-                }
-            }
-
-            // Sort by block number (most recent first)
-            this.transactionHistory.sort((a, b) => {
-                if (!a.blockNumber && !b.blockNumber) return 0;
-                if (!a.blockNumber) return 1;
-                if (!b.blockNumber) return -1;
-                return b.blockNumber - a.blockNumber;
-            });
-
-            // Fetch timestamps for transactions that don't have them
-            await this.fetchTransactionTimestamps();
-
-            // Render transactions
-            this.renderTransactions();
-
-        } catch (error) {
-            console.warn('Failed to load existing transactions:', error);
-            this.showToast('Failed to load transaction history', true);
-        }
-    }
-
-    addTransaction(txHash, toAddress) {
-        // Check if transaction already exists
-        if (this.transactionHistory.find(t => t.hash === txHash)) {
-            return;
-        }
-
-        const transaction = {
-            hash: txHash,
-            from: this.account,
-            to: toAddress,
-            blockNumber: null,
-            timestamp: new Date(),
-            status: 'pending'
-        };
-
-        this.transactionHistory.unshift(transaction);
-        this.renderTransactions();
-
-        // Listen for transaction confirmation
-        this.watchTransactionConfirmation(txHash);
-    }
-
-    watchTransactionConfirmation(txHash) {
-        if (!this.web3) return;
-
-        const checkInterval = setInterval(() => {
-            this.web3.eth.getTransactionReceipt(txHash)
-                .then(receipt => {
-                    if (receipt) {
-                        clearInterval(checkInterval);
-                        
-                        const tx = this.transactionHistory.find(t => t.hash === txHash);
-                        if (tx) {
-                            tx.status = receipt.status ? 'confirmed' : 'failed';
-                            tx.blockNumber = receipt.blockNumber;
-                            this.renderTransactions();
-                            
-                            if (tx.status === 'confirmed') {
-                                this.showToast('Transaction confirmed!');
-                            } else {
-                                this.showToast('Transaction failed', true);
-                            }
-                        }
-                    }
-                })
-                .catch(err => {
-                    console.warn('Error checking transaction:', err);
-                });
-        }, 2000);
-
-        // Stop watching after 5 minutes
-        setTimeout(() => {
-            clearInterval(checkInterval);
-        }, 300000);
-    }
-
-    renderTransactions() {
-        const container = document.getElementById('transactions-container');
-        if (!container) return;
-
-        if (this.transactionHistory.length === 0) {
-            container.innerHTML = `
-                <div class="table-empty">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
-                        <path d="M8 12L11 15L16 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                    <h3>No transactions yet</h3>
-                    <p>Your transaction history will appear here</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = `
-            <div class="table-wrapper">
-                <table class="sqd-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Transaction Hash</th>
-                            <th>Block</th>
-                            <th>Timestamp</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${this.transactionHistory.map((tx, index) => this.createTransactionRow(tx, index + 1)).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    createTransactionRow(tx, rowNumber) {
-        const statusClass = tx.status;
-        const timestamp = tx.timestamp ? new Date(tx.timestamp).toLocaleString() : 'Pending...';
-        
-        // Get blockchain explorer URL based on network
-        const getExplorerUrl = (txHash) => {
-            const metadata = taskMonitor.metadata;
-            if (!metadata) return '#';
-            return explorerTxUrl(metadata.blockchain_network, txHash);
-        };
-        
-        return `
-            <tr>
-                <td><span class="row-number">${rowNumber}</span></td>
-                <td>
-                    <a href="${getExplorerUrl(tx.hash)}" target="_blank" class="mono" title="View on blockchain explorer">
-                        ${tx.hash}
-                    </a>
-                </td>
-                <td>${tx.blockNumber ? tx.blockNumber : '-'}</td>
-                <td class="text-muted">${timestamp}</td>
-            </tr>
-        `;
-    }
-
-    async fetchTransactionTimestamps() {
-        try {
-            if (!this.web3 || this.transactionHistory.length === 0) return;
-
-            // Get RPC URL from metadata
-            const metadata = await taskMonitor.loadMetadata();
-            if (!metadata) return;
-
-            let httpRpcUrl = metadata.rpc_url;
-            if (httpRpcUrl.startsWith('wss://')) {
-                httpRpcUrl = httpRpcUrl.replace('wss://', 'https://');
-            }
-
-            // Fetch timestamps for transactions that don't have them
-            for (const tx of this.transactionHistory) {
-                if (tx.timestamp || !tx.blockNumber) continue;
-
-                try {
-                    const response = await fetch(httpRpcUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            jsonrpc: '2.0',
-                            method: 'eth_getBlockByNumber',
-                            params: ['0x' + tx.blockNumber.toString(16), false],
-                            id: 1
-                        })
-                    });
-
-                    const result = await response.json();
-                    if (result.result && result.result.timestamp) {
-                        tx.timestamp = parseInt(result.result.timestamp, 16) * 1000; // Convert to milliseconds
-                    }
-                } catch (blockError) {
-                    console.warn('Error fetching block:', tx.blockNumber, blockError);
-                }
-            }
-        } catch (error) {
-            console.warn('Failed to fetch transaction timestamps:', error);
-        }
-    }
-
-    async refreshTransactions() {
-        if (!this.isConnected) {
-            this.showToast('Connect your wallet first', true);
-            return;
-        }
-
-        this.showToast('Refreshing transactions...', false);
-        
-        // Clear existing history and reload
-        this.transactionHistory = [];
-        await this.loadExistingTransactions();
-        
-        this.showToast('Transaction history refreshed');
-    }
-
-    clearTransactionHistory() {
-        this.transactionHistory = [];
-        this.renderTransactions();
-        this.showToast('Transaction history cleared');
-    }
 }
 
 // Task monitoring application
@@ -1410,11 +1044,6 @@ class TaskMonitor {
 
             const receipt = await currentWeb3.eth.sendTransaction(tx);
 
-            // Track the transaction
-            if (this.walletManager && this.walletManager.addTransaction) {
-                this.walletManager.addTransaction(receipt.transactionHash, metadata.manager_address);
-            }
-
             // Success — update button
             if (btn) {
                 btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M20 6L9 17L4 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg> Published!';
@@ -1666,17 +1295,6 @@ function connectWallet() {
     }
 }
 
-function clearTransactionHistory() {
-    if (window.taskMonitor && window.taskMonitor.walletManager) {
-        window.taskMonitor.walletManager.clearTransactionHistory();
-    }
-}
-
-function refreshTransactions() {
-    if (window.taskMonitor && window.taskMonitor.walletManager) {
-        window.taskMonitor.walletManager.refreshTransactions();
-    }
-}
 
 function loadFraudData() {
     if (window.taskMonitor) {
@@ -1694,12 +1312,6 @@ function loadProofs() {
 
 // Tab switching functionality
 function switchTab(tabName) {
-    // Check if trying to access transactions tab without wallet connection
-    if (tabName === 'my-transactions' && window.taskMonitor && !window.taskMonitor.walletManager.isConnected) {
-        window.taskMonitor.walletManager.showToast('Please connect your wallet to view transactions', true);
-        return;
-    }
-    
     // Hide all tab panes
     const tabPanes = document.querySelectorAll('.tab-pane');
     tabPanes.forEach(pane => {
