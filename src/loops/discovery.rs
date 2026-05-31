@@ -420,7 +420,20 @@ pub fn start_discovery_loop(state: &InternalState) {
                         .iter()
                         .skip_while(|row| row.query_id != query_id);
 
+                    // Whether we have successfully assembled the first (fraudulent) row's proof.
+                    // The iterator starts at the odd query_id (put_query_id_first placed it
+                    // first), so proof_data_list being empty means we are still on that row.
+                    // Any failure on the first row aborts the entire query_id — the remaining
+                    // witness rows are useless without it.
+                    let mut first_row_started = false;
+                    let mut first_row_succeeded = false;
+
                     for proof_row in eligible_queries_iter {
+                        if (first_row_started && !first_row_succeeded) {
+
+                        }
+                        first_row_started = true;
+
                         if proof_data_list.len() >= NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
                             break;
                         }
@@ -523,12 +536,26 @@ pub fn start_discovery_loop(state: &InternalState) {
                         };
                         used_keys.insert(proof_row.worker_id.clone());
                         proof_data_list.push(proof);
+                        first_row_succeeded = true;
                         push_stage(
                             &local_progress,
                             STAGE_ASSEMBLE_PROOF_DATA,
                             3,
                             format!("Got MPT proof for eligibility of {}", proof_row.worker_id),
                         );
+                    }
+
+                    // If the odd (fraudulent) row failed we have nothing to prove.
+                    if !first_row_succeeded {
+                        push_error(
+                            &local_progress,
+                            2,
+                            format!(
+                                "query_id {query_id}: odd row did not produce a proof entry — \
+                                 skipping ZK proof generation"
+                            ),
+                        );
+                        continue;
                     }
 
                     if proof_data_list.len() < NUMBER_OF_EVIDENCES_IN_ZK_PROOF {
