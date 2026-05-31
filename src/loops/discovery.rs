@@ -429,8 +429,8 @@ pub fn start_discovery_loop(state: &InternalState) {
                     let mut first_row_succeeded = false;
 
                     for proof_row in eligible_queries_iter {
-                        if (first_row_started && !first_row_succeeded) {
-
+                        if first_row_started && !first_row_succeeded {
+                            break;
                         }
                         first_row_started = true;
 

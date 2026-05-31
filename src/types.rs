@@ -123,6 +123,50 @@ pub struct ProofEntry {
 }
 
 // ---------------------------------------------------------------------------
+// GraphQL types for the ZK-feed squid
+// ---------------------------------------------------------------------------
+
+/// A single `FraudFound` event returned by the GraphQL squid endpoint.
+///
+/// The squid exposes it as `contractEventFraudFounds` with the following
+/// schema (only the fields we use are requested and deserialized):
+/// ```graphql
+/// type ContractEventFraudFound {
+///   peerId:    String!
+///   timestamp: BigInt!   # milliseconds since epoch, serialised as string
+/// }
+/// ```
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphQlFraudFound {
+    pub peer_id: String,
+    /// Milliseconds since Unix epoch.  The GraphQL `BigInt` scalar is
+    /// serialised as a decimal string, so we parse it ourselves.
+    #[serde(deserialize_with = "deserialize_bigint_string")]
+    pub timestamp: u64,
+}
+
+fn deserialize_bigint_string<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    s.parse::<u64>().map_err(serde::de::Error::custom)
+}
+
+/// Top-level GraphQL response wrapper for `contractEventFraudFounds`.
+#[derive(Debug, Deserialize)]
+pub struct GraphQlFraudFoundsResponse {
+    pub data: GraphQlFraudFoundsData,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphQlFraudFoundsData {
+    pub contract_event_fraud_founds: Vec<GraphQlFraudFound>,
+}
+
+// ---------------------------------------------------------------------------
 // ClickHouse row types
 // ---------------------------------------------------------------------------
 

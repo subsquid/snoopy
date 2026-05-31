@@ -7596,6 +7596,7 @@ dependencies = [
  "sentry",
  "serde",
  "serde_bytes",
+ "serde_json",
  "serde_repr",
  "sp1-sdk",
  "sqd-assignments",
